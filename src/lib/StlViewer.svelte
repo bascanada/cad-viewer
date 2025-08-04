@@ -1,20 +1,21 @@
 <svelte:options customElement="stl-viewer" />
 
 <script>
-  import { onMount, onDestroy, getContext } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import * as THREE from 'three';
   import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
   import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-  import { derived, writable } from 'svelte/store';
-    
 
   // --- Props ---
   export let stlPayload = '';
   export let color = '#fca503';
+  export let viewerBackgroundColor = '#1e1e1e';
+  export let gridColor = '#888888';
+  export let gridCenterLineColor = '#444444';
 
   // --- Component State ---
   let container;
-  let renderer, scene, controls, currentMesh;
+  let renderer, scene, controls, currentMesh, gridHelper;
   const loader = new STLLoader();
   let animationFrameId;
   let resizeObserver;
@@ -23,7 +24,6 @@
   let triangleCount = 0;
   let modelDimensions = null;
 
-  // ✨ NOUVEAU: State pour les caméras
   let viewMode = 'perspective'; // 'perspective' ou 'orthographic'
   let camera; // La caméra active
   let perspectiveCamera, orthographicCamera;
@@ -31,7 +31,7 @@
 
   onMount(() => {
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1e1e1e);
+    scene.background = new THREE.Color(viewerBackgroundColor);
     
     // ✨ NOUVEAU: Initialiser les deux caméras
     const aspect = container.clientWidth / container.clientHeight;
@@ -41,7 +41,7 @@
     camera.position.z = 10;
 
     // Grid and Axes
-    const gridHelper = new THREE.GridHelper(100, 100, 0x888888, 0x444444);
+    gridHelper = new THREE.GridHelper(100, 100, gridColor, gridCenterLineColor);
     scene.add(gridHelper);
     const axesHelper = new THREE.AxesHelper(5);
     scene.add(axesHelper);
@@ -153,8 +153,6 @@
       currentMesh.material.dispose();
     }
 
-    console.log(payload);
-    
     try {
       const geometry = loader.parse(payload);
       const material = new THREE.MeshStandardMaterial({
@@ -180,21 +178,19 @@
 
   // --- Toolbar Functions ---
   function resetView() {
-    frameCamera(); // La logique de reset est maintenant dans frameCamera
+    frameCamera();
   }
 
   function toggleWireframe() {
     if (currentMesh) { currentMesh.material.wireframe = !currentMesh.material.wireframe; }
   }
   
-  // ✨ NOUVEAU: Fonction pour changer le mode de vue
   function toggleViewMode() {
     viewMode = (viewMode === 'perspective') ? 'orthographic' : 'perspective';
     resetView();
   }
 
   function setView(view) {
-    // Il faut ajuster la distance pour les vues standards
     const distance = camera.position.length();
     controls.target.set(0, 0, 0);
     camera.up.set(0, 1, 0);
@@ -218,6 +214,16 @@
     updateModel(stlPayload, color);
   }
 
+  $: if (scene) {
+    scene.background = new THREE.Color(viewerBackgroundColor);
+  }
+
+  $: if (scene && gridHelper) {
+    scene.remove(gridHelper);
+    gridHelper.dispose();
+    gridHelper = new THREE.GridHelper(100, 100, gridColor, gridCenterLineColor);
+    scene.add(gridHelper);
+  }
 </script>
 
 <style>
@@ -226,13 +232,24 @@
     height: 100%;
     width: 100%;
     overflow: hidden;
+
+    /* --- Themeable Properties --- */
+    --viewer-background-color: #1e1e1e;
+    --toolbar-background-color: rgba(42, 42, 42, 0.8);
+    --toolbar-button-background-color: #444;
+    --toolbar-button-hover-background-color: #555;
+    --toolbar-button-foreground-color: white;
+    --toolbar-button-border-color: #666;
+    --info-panel-background-color: rgba(42, 42, 42, 0.8);
+    --info-panel-foreground-color: #eee;
+    --info-panel-span-background-color: #444;
   }
   .toolbar {
     position: absolute;
     top: 1rem;
     left: 1rem;
     z-index: 10;
-    background-color: rgba(42, 42, 42, 0.8);
+    background-color: var(--toolbar-background-color);
     padding: 8px;
     border-radius: 4px;
     display: flex;
@@ -240,24 +257,24 @@
     flex-wrap: wrap;
   }
   .toolbar button {
-    background-color: #444;
-    color: white;
-    border: 1px solid #666;
+    background-color: var(--toolbar-button-background-color);
+    color: var(--toolbar-button-foreground-color);
+    border: 1px solid var(--toolbar-button-border-color);
     border-radius: 4px;
     padding: 5px 10px;
     cursor: pointer;
     font-size: 0.9em;
   }
   .toolbar button:hover {
-    background-color: #555;
+    background-color: var(--toolbar-button-hover-background-color);
   }
   .info-panel {
     position: absolute;
     bottom: 1rem;
     left: 1rem;
     z-index: 10;
-    background-color: rgba(42, 42, 42, 0.8);
-    color: #eee;
+    background-color: var(--info-panel-background-color);
+    color: var(--info-panel-foreground-color);
     padding: 8px 12px;
     border-radius: 4px;
     display: flex;
@@ -266,14 +283,14 @@
     font-size: 0.9em;
   }
   .info-panel span {
-    background-color: #444;
+    background-color: var(--info-panel-span-background-color);
     padding: 4px 8px;
     border-radius: 4px;
   }
   .viewer-container {
     width: 100%;
     height: 100%;
-    background-color: #1e1e1e;
+    background-color: var(--viewer-background-color);
   }
 </style>
 

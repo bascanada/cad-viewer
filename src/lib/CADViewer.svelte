@@ -1,13 +1,15 @@
-<svelte:options customElement="stl-viewer" />
+<svelte:options customElement="cad-viewer" />
 
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import * as THREE from 'three';
   import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
+  import { ThreeMFLoader } from 'three/examples/jsm/loaders/3MFLoader.js';
   import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
   // --- Props ---
-  export let stlPayload = '';
+  export let payload: string = '';
+  export let payloadType: 'stl' | '3mf' = 'stl';
   export let color = '#fca503';
   export let viewerBackgroundColor = '#1e1e1e';
   export let gridColor = '#888888';
@@ -31,6 +33,7 @@
       currentMesh: THREE.Mesh, 
       gridHelper: THREE.GridHelper;
   const loader = new STLLoader();
+  const threeMFLoader = new ThreeMFLoader();
   let animationFrameId;
   let resizeObserver;
 
@@ -85,8 +88,8 @@
     };
     animate();
 
-    if (stlPayload) {
-      updateModel(stlPayload, color);
+    if (payload) {
+        updateModel(payload, color);
     }
 
     const handleResize = () => {
@@ -173,25 +176,47 @@
     }
 
     try {
-      const geometry = loader.parse(payload);
-      const material = new THREE.MeshStandardMaterial({
-        color: modelColor,
-        metalness: 0.1,
-        roughness: 0.75,
-      });
-      currentMesh = new THREE.Mesh(geometry, material);
-      scene.add(currentMesh);
-
-      // Mettre à jour les infos
-      const boundingBox = new THREE.Box3().setFromObject(currentMesh);
-      const size = boundingBox.getSize(new THREE.Vector3());
-      triangleCount = geometry.attributes.position.count / 3;
-      modelDimensions = { x: size.x.toFixed(2), y: size.y.toFixed(2), z: size.z.toFixed(2) };
-      
-      // Cadrer la caméra
-      frameCamera(false);
+      let geometry: THREE.BufferGeometry | undefined;
+      let material: THREE.MeshStandardMaterial;
+      let meshes: THREE.Mesh[] = [];
+      if (payloadType === 'stl') {
+        geometry = loader.parse(payload);
+        material = new THREE.MeshStandardMaterial({
+          color: modelColor,
+          metalness: 0.1,
+          roughness: 0.75,
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        scene.add(mesh);
+        meshes.push(mesh);
+      } else if (payloadType === '3mf') {
+        const object = threeMFLoader.parse(payload);
+        // Recursively find and add all meshes
+        function addMeshes(obj: any) {
+          if (obj.isMesh) {
+            scene.add(obj);
+            meshes.push(obj);
+          }
+          if (obj.children && obj.children.length) {
+            obj.children.forEach(addMeshes);
+          }
+        }
+        addMeshes(object);
+        if (meshes.length === 0) {
+          throw new Error('No mesh found in 3MF payload');
+        }
+      }
+      if (meshes.length > 0) {
+        // Use the first mesh for info and camera framing
+        currentMesh = meshes[0];
+        const boundingBox = new THREE.Box3().setFromObject(currentMesh);
+        const size = boundingBox.getSize(new THREE.Vector3());
+        triangleCount = meshes.reduce((sum, m) => sum + (m.geometry.attributes.position.count / 3), 0);
+        modelDimensions = { x: size.x.toFixed(2), y: size.y.toFixed(2), z: size.z.toFixed(2) };
+        frameCamera(false);
+      }
     } catch (error) {
-      console.error("Failed to parse STL:", error);
+      console.error(`Failed to parse ${payloadType.toUpperCase()}:`, error);
     }
   }
 
@@ -229,8 +254,8 @@
     controls.update();
   }
 
-  $: if (scene && stlPayload) {
-    updateModel(stlPayload, color);
+  $: if (scene && payload) {
+      updateModel(payload, color);
   }
 
   $: if (scene && container) {

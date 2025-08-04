@@ -1,2 +1,2 @@
 
-import './lib/StlViewer.svelte';
+import './lib/CADViewer.svelte';

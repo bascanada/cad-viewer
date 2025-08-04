@@ -8,10 +8,23 @@
     <script type="module" src="/src/main.ts"></script>
 </head>
 <body style="height: 100%; width: 100%; margin: 0;">
-    <stl-viewer id="stl-viewer" viewerBackgroundColor="rgb(255, 0, 0)"></stl-viewer>
+    <cad-viewer id="cad-viewer" viewerBackgroundColor="rgb(255, 0, 0)"></cad-viewer>
     <script>
-            const stlViewer = document.getElementById('stl-viewer');
-            stlViewer.stlPayload = `
+      // Decode base64 to ArrayBuffer
+  function base64ToArrayBuffer(base64) {
+    const binary = atob(base64);
+    const len = binary.length;
+    const buffer = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      buffer[i] = binary.charCodeAt(i);
+    }
+    return buffer.buffer;
+  }
+
+  const threemf = `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`;
+
+    const cadViewer = document.getElementById('cad-viewer');
+            cadViewer.payload = `
 solid OpenSCAD_Model
   facet normal -0 0 1
     outer loop
@@ -101,40 +114,9 @@ endsolid OpenSCAD_Model`;
 
 
         setTimeout(() => {
-            stlViewer.stlPayload = `
-solid pyramid
-  facet normal 0.0 0.0 -1.0
-    outer loop
-      vertex 1.0 1.0 0.0
-      vertex -1.0 1.0 0.0
-      vertex 0.0 -1.0 0.0
-    endloop
-  endfacet
-  facet normal 0.0 -1.0 0.5
-    outer loop
-      vertex 0.0 0.0 1.0
-      vertex 0.0 -1.0 0.0
-      vertex -1.0 1.0 0.0
-    endloop
-  endfacet
-  facet normal 0.8944 0.4472 0.0
-    outer loop
-      vertex 0.0 0.0 1.0
-      vertex 1.0 1.0 0.0
-      vertex 0.0 -1.0 0.0
-    endloop
-  endfacet
-  facet normal -0.8944 0.4472 0.0
-    outer loop
-      vertex 0.0 0.0 1.0
-      vertex -1.0 1.0 0.0
-      vertex 1.0 1.0 0.0
-    endloop
-  endfacet
-endsolid pyramid
-            
-`;
-        }, 5000)
+            cadViewer.payloadType = '3mf';
+            cadViewer.payload = base64ToArrayBuffer(threemf);
+        }, 1000)
     </script>
 </body>
 </html>

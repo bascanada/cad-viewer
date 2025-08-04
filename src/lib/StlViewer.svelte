@@ -1,0 +1,224 @@
+<svelte:options customElement="stl-viewer" />
+
+<script>
+  import { onMount, onDestroy, getContext } from 'svelte';
+  import * as THREE from 'three';
+  import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
+  import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+  import { derived, writable } from 'svelte/store';
+    
+
+  // --- Props ---
+  export let stlPayload = '';
+  export let color = '#fca503';
+
+  // --- Component State ---
+  let container;
+  let renderer, scene, controls, currentMesh;
+  const loader = new STLLoader();
+  let animationFrameId;
+
+  // CAD features State
+  let triangleCount = 0;
+  let modelDimensions = null;
+
+  // ✨ NOUVEAU: State pour les caméras
+  let viewMode = 'perspective'; // 'perspective' ou 'orthographic'
+  let camera; // La caméra active
+  let perspectiveCamera, orthographicCamera;
+
+
+  onMount(() => {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1e1e1e);
+    
+    // ✨ NOUVEAU: Initialiser les deux caméras
+    const aspect = container.clientWidth / container.clientHeight;
+    perspectiveCamera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+    orthographicCamera = new THREE.OrthographicCamera(-aspect, aspect, 1, -1, 0.1, 1000);
+    camera = perspectiveCamera; // Commencer en mode perspective
+    camera.position.z = 10;
+
+    // Grid and Axes
+    const gridHelper = new THREE.GridHelper(100, 100, 0x888888, 0x444444);
+    scene.add(gridHelper);
+    const axesHelper = new THREE.AxesHelper(5);
+    scene.add(axesHelper);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(5, 10, 7.5);
+    scene.add(directionalLight);
+    
+    const animate = () => {
+      animationFrameId = requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    if (stlPayload) {
+      updateModel(stlPayload, color);
+    }
+  });
+
+  onDestroy(() => {
+    cancelAnimationFrame(animationFrameId);
+    if (currentMesh) {
+      scene.remove(currentMesh);
+      currentMesh.geometry.dispose();
+      currentMesh.material.dispose();
+    }
+    controls.dispose();
+    renderer.dispose();
+  });
+
+  // ✨ NOUVEAU: Fonction de cadrage qui gère les deux types de caméra
+  function frameCamera() {
+    if (!currentMesh) return;
+
+    const boundingBox = new THREE.Box3().setFromObject(currentMesh);
+    const center = boundingBox.getCenter(new THREE.Vector3());
+    const size = boundingBox.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+
+    // Centrer le modèle
+    currentMesh.position.sub(center);
+
+    if (viewMode === 'perspective') {
+      camera = perspectiveCamera;
+      const fov = camera.fov * (Math.PI / 180);
+      const cameraZ = (maxDim / 2) / Math.tan(fov / 2) * 1.5;
+      camera.position.set(0, 0, cameraZ);
+    } else { // Orthographic
+      camera = orthographicCamera;
+      const aspect = container.clientWidth / container.clientHeight;
+      const camHeight = maxDim * 1.2;
+      const camWidth = camHeight * aspect;
+
+      camera.left = -camWidth / 2;
+      camera.right = camWidth / 2;
+      camera.top = camHeight / 2;
+      camera.bottom = -camHeight / 2;
+      camera.position.set(0, 0, maxDim * 1.5);
+      camera.zoom = 1;
+      camera.updateProjectionMatrix();
+    }
+    
+    // Mettre à jour les OrbitControls avec la caméra active
+    controls.object = camera;
+    controls.target.set(0, 0, 0);
+    controls.update();
+  }
+
+  function updateModel(payload, modelColor) {
+    if (currentMesh) {
+      scene.remove(currentMesh);
+      currentMesh.geometry.dispose();
+      currentMesh.material.dispose();
+    }
+
+    console.log(payload);
+    
+    try {
+      const geometry = loader.parse(payload);
+      const material = new THREE.MeshStandardMaterial({
+        color: modelColor,
+        metalness: 0.1,
+        roughness: 0.75,
+      });
+      currentMesh = new THREE.Mesh(geometry, material);
+      scene.add(currentMesh);
+
+      // Mettre à jour les infos
+      const boundingBox = new THREE.Box3().setFromObject(currentMesh);
+      const size = boundingBox.getSize(new THREE.Vector3());
+      triangleCount = geometry.attributes.position.count / 3;
+      modelDimensions = { x: size.x.toFixed(2), y: size.y.toFixed(2), z: size.z.toFixed(2) };
+      
+      // Cadrer la caméra
+      frameCamera();
+    } catch (error) {
+      console.error("Failed to parse STL:", error);
+    }
+  }
+
+  // --- Toolbar Functions ---
+  function resetView() {
+    frameCamera(); // La logique de reset est maintenant dans frameCamera
+  }
+
+  function toggleWireframe() {
+    if (currentMesh) { currentMesh.material.wireframe = !currentMesh.material.wireframe; }
+  }
+  
+  // ✨ NOUVEAU: Fonction pour changer le mode de vue
+  function toggleViewMode() {
+    viewMode = (viewMode === 'perspective') ? 'orthographic' : 'perspective';
+    resetView();
+  }
+
+  function setView(view) {
+    // Il faut ajuster la distance pour les vues standards
+    const distance = camera.position.length();
+    controls.target.set(0, 0, 0);
+    camera.up.set(0, 1, 0);
+
+    switch (view) {
+      case 'top':
+        camera.position.set(0, distance, 0);
+        camera.up.set(0, 0, -1);
+        break;
+      case 'front':
+        camera.position.set(0, 0, distance);
+        break;
+      case 'right':
+        camera.position.set(distance, 0, 0);
+        break;
+    }
+    controls.update();
+  }
+
+  $: if (scene && stlPayload) {
+    updateModel(stlPayload, color);
+  }
+
+</script>
+
+<style>
+  /* ... styles inchangés ... */
+  .toolbar { background-color: #2a2a2a; padding: 8px; border-radius: 4px; margin-bottom: 1rem; display: flex; gap: 10px; flex-wrap: wrap; }
+  .toolbar button { background-color: #444; color: white; border: 1px solid #666; border-radius: 4px; padding: 5px 10px; cursor: pointer; font-size: 0.9em; }
+  .toolbar button:hover { background-color: #555; }
+  .info-panel { background-color: #2a2a2a; color: #eee; padding: 8px 12px; border-radius: 4px; margin-bottom: 1rem; display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9em; }
+  .info-panel span { background-color: #444; padding: 4px 8px; border-radius: 4px; }
+  .viewer-container { width: 100%; height: 60vh; min-height: 400px; background-color: #1e1e1e; border-radius: 4px; }
+</style>
+
+<div class="toolbar">
+  <button on:click={resetView}>Reset View</button>
+  <button on:click={toggleViewMode}>View: {viewMode}</button>
+  <button on:click={toggleWireframe}>Toggle Wireframe</button>
+  <button on:click={() => setView('top')}>Top</button>
+  <button on:click={() => setView('front')}>Front</button>
+  <button on:click={() => setView('right')}>Right</button>
+</div>
+
+{#if modelDimensions}
+  <div class="info-panel">
+    <strong>Model Info:</strong>
+    <span>Triangles: {triangleCount.toLocaleString()}</span>
+    <span>Dimensions (mm): {modelDimensions.x} x {modelDimensions.y} x {modelDimensions.z}</span>
+  </div>
+{/if}
+
+<div class="viewer-container" bind:this={container}></div>

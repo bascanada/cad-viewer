@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Svelte Component DEV</title>
+    
+    <script type="module" src="/src/main.ts"></script>
+</head>
+<body style="height: 100%; width: 100%;">
+    <stl-viewer id="stl-viewer"></stl-viewer>
+    <script>
+            const stlViewer = document.getElementById('stl-viewer');
+            stlViewer.stlPayload = `
+solid OpenSCAD_Model
+  facet normal -0 0 1
+    outer loop
+      vertex 0 10 10
+      vertex 10 0 10
+      vertex 10 10 10
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 10 0 10
+      vertex 0 10 10
+      vertex 0 0 10
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex 0 0 0
+      vertex 10 10 0
+      vertex 10 0 0
+    endloop
+  endfacet
+  facet normal -0 0 -1
+    outer loop
+      vertex 10 10 0
+      vertex 0 0 0
+      vertex 0 10 0
+    endloop
+  endfacet
+  facet normal 0 -1 0
+    outer loop
+      vertex 0 0 0
+      vertex 10 0 10
+      vertex 0 0 10
+    endloop
+  endfacet
+  facet normal 0 -1 -0
+    outer loop
+      vertex 10 0 10
+      vertex 0 0 0
+      vertex 10 0 0
+    endloop
+  endfacet
+  facet normal 1 -0 0
+    outer loop
+      vertex 10 0 10
+      vertex 10 10 0
+      vertex 10 10 10
+    endloop
+  endfacet
+  facet normal 1 0 0
+    outer loop
+      vertex 10 10 0
+      vertex 10 0 10
+      vertex 10 0 0
+    endloop
+  endfacet
+  facet normal 0 1 -0
+    outer loop
+      vertex 10 10 0
+      vertex 0 10 10
+      vertex 10 10 10
+    endloop
+  endfacet
+  facet normal 0 1 0
+    outer loop
+      vertex 0 10 10
+      vertex 10 10 0
+      vertex 0 10 0
+    endloop
+  endfacet
+  facet normal -1 0 0
+    outer loop
+      vertex 0 0 0
+      vertex 0 10 10
+      vertex 0 10 0
+    endloop
+  endfacet
+  facet normal -1 -0 0
+    outer loop
+      vertex 0 10 10
+      vertex 0 0 0
+      vertex 0 0 10
+    endloop
+  endfacet
+endsolid OpenSCAD_Model`;
+    </script>
+</body>
+</html>

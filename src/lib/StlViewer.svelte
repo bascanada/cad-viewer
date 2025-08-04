@@ -1,6 +1,6 @@
 <svelte:options customElement="stl-viewer" />
 
-<script>
+<script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import * as THREE from 'three';
   import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
@@ -13,25 +13,43 @@
   export let gridColor = '#888888';
   export let gridCenterLineColor = '#444444';
 
+  // --- Themeable properties ---
+  export let toolbarBackgroundColor = 'rgba(42, 42, 42, 0.8)';
+  export let toolbarButtonBackgroundColor = '#444';
+  export let toolbarButtonHoverBackgroundColor = '#555';
+  export let toolbarButtonForegroundColor = 'white';
+  export let toolbarButtonBorderColor = '#666';
+  export let infoPanelBackgroundColor = 'rgba(42, 42, 42, 0.8)';
+  export let infoPanelForegroundColor = '#eee';
+  export let infoPanelSpanBackgroundColor = '#444';
+
   // --- Component State ---
-  let container;
-  let renderer, scene, controls, currentMesh, gridHelper;
+  let container: HTMLElement;
+  let renderer: THREE.WebGLRenderer, 
+      scene: THREE.Scene, 
+      controls: OrbitControls, 
+      currentMesh: THREE.Mesh, 
+      gridHelper: THREE.GridHelper;
   const loader = new STLLoader();
   let animationFrameId;
   let resizeObserver;
 
   // CAD features State
   let triangleCount = 0;
-  let modelDimensions = null;
+  let modelDimensions: { x: string, y: string, z: string } | null = null;
 
   let viewMode = 'perspective'; // 'perspective' ou 'orthographic'
-  let camera; // La caméra active
-  let perspectiveCamera, orthographicCamera;
+  let camera: THREE.PerspectiveCamera | THREE.OrthographicCamera; // La caméra active
+  let perspectiveCamera: THREE.PerspectiveCamera, 
+      orthographicCamera: THREE.OrthographicCamera;
 
 
   onMount(() => {
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(viewerBackgroundColor);
+    
+    // We get the computed style of the container to resolve the CSS variable
+    const computedStyle = getComputedStyle(container);
+    scene.background = new THREE.Color(computedStyle.backgroundColor);
     
     // ✨ NOUVEAU: Initialiser les deux caméras
     const aspect = container.clientWidth / container.clientHeight;
@@ -108,8 +126,7 @@
     renderer.dispose();
   });
 
-  // ✨ NOUVEAU: Fonction de cadrage qui gère les deux types de caméra
-  function frameCamera() {
+  function frameCamera(resetPosition = true) {
     if (!currentMesh) return;
 
     const boundingBox = new THREE.Box3().setFromObject(currentMesh);
@@ -120,24 +137,26 @@
     // Centrer le modèle
     currentMesh.position.sub(center);
 
-    if (viewMode === 'perspective') {
-      camera = perspectiveCamera;
-      const fov = camera.fov * (Math.PI / 180);
-      const cameraZ = (maxDim / 2) / Math.tan(fov / 2) * 1.5;
-      camera.position.set(0, 0, cameraZ);
-    } else { // Orthographic
-      camera = orthographicCamera;
-      const aspect = container.clientWidth / container.clientHeight;
-      const camHeight = maxDim * 1.2;
-      const camWidth = camHeight * aspect;
+    if(resetPosition) {
+      if (viewMode === 'perspective') {
+        camera = perspectiveCamera;
+        const fov = camera.fov * (Math.PI / 180);
+        const cameraZ = (maxDim / 2) / Math.tan(fov / 2) * 1.5;
+        camera.position.set(0, 0, cameraZ);
+      } else { // Orthographic
+        camera = orthographicCamera;
+        const aspect = container.clientWidth / container.clientHeight;
+        const camHeight = maxDim * 1.2;
+        const camWidth = camHeight * aspect;
 
-      camera.left = -camWidth / 2;
-      camera.right = camWidth / 2;
-      camera.top = camHeight / 2;
-      camera.bottom = -camHeight / 2;
-      camera.position.set(0, 0, maxDim * 1.5);
-      camera.zoom = 1;
-      camera.updateProjectionMatrix();
+        camera.left = -camWidth / 2;
+        camera.right = camWidth / 2;
+        camera.top = camHeight / 2;
+        camera.bottom = -camHeight / 2;
+        camera.position.set(0, 0, maxDim * 1.5);
+        camera.zoom = 1;
+        camera.updateProjectionMatrix();
+      }
     }
     
     // Mettre à jour les OrbitControls avec la caméra active
@@ -146,7 +165,7 @@
     controls.update();
   }
 
-  function updateModel(payload, modelColor) {
+  function updateModel(payload: string, modelColor: string) {
     if (currentMesh) {
       scene.remove(currentMesh);
       currentMesh.geometry.dispose();
@@ -170,7 +189,7 @@
       modelDimensions = { x: size.x.toFixed(2), y: size.y.toFixed(2), z: size.z.toFixed(2) };
       
       // Cadrer la caméra
-      frameCamera();
+      frameCamera(false);
     } catch (error) {
       console.error("Failed to parse STL:", error);
     }
@@ -190,7 +209,7 @@
     resetView();
   }
 
-  function setView(view) {
+  function setView(view: 'top' | 'front' | 'right') {
     const distance = camera.position.length();
     controls.target.set(0, 0, 0);
     camera.up.set(0, 1, 0);
@@ -214,8 +233,9 @@
     updateModel(stlPayload, color);
   }
 
-  $: if (scene) {
-    scene.background = new THREE.Color(viewerBackgroundColor);
+  $: if (scene && container) {
+    const computedStyle = getComputedStyle(container);
+    scene.background = new THREE.Color(computedStyle.backgroundColor);
   }
 
   $: if (scene && gridHelper) {
@@ -232,17 +252,6 @@
     height: 100%;
     width: 100%;
     overflow: hidden;
-
-    /* --- Themeable Properties --- */
-    --viewer-background-color: #1e1e1e;
-    --toolbar-background-color: rgba(42, 42, 42, 0.8);
-    --toolbar-button-background-color: #444;
-    --toolbar-button-hover-background-color: #555;
-    --toolbar-button-foreground-color: white;
-    --toolbar-button-border-color: #666;
-    --info-panel-background-color: rgba(42, 42, 42, 0.8);
-    --info-panel-foreground-color: #eee;
-    --info-panel-span-background-color: #444;
   }
   .toolbar {
     position: absolute;
@@ -294,7 +303,20 @@
   }
 </style>
 
-<div class="stl-viewer-host">
+<div 
+  class="stl-viewer-host"
+  style="
+    --viewer-background-color: {viewerBackgroundColor};
+    --toolbar-background-color: {toolbarBackgroundColor};
+    --toolbar-button-background-color: {toolbarButtonBackgroundColor};
+    --toolbar-button-hover-background-color: {toolbarButtonHoverBackgroundColor};
+    --toolbar-button-foreground-color: {toolbarButtonForegroundColor};
+    --toolbar-button-border-color: {toolbarButtonBorderColor};
+    --info-panel-background-color: {infoPanelBackgroundColor};
+    --info-panel-foreground-color: {infoPanelForegroundColor};
+    --info-panel-span-background-color: {infoPanelSpanBackgroundColor};
+  "
+>
   <div class="viewer-container" bind:this={container}></div>
 
   <div class="toolbar">

@@ -8,7 +8,7 @@
     <script type="module" src="/src/main.ts"></script>
 </head>
 <body style="height: 100%; width: 100%; margin: 0;">
-    <stl-viewer id="stl-viewer"></stl-viewer>
+    <stl-viewer id="stl-viewer" viewerBackgroundColor="rgb(255, 0, 0)"></stl-viewer>
     <script>
             const stlViewer = document.getElementById('stl-viewer');
             stlViewer.stlPayload = `
@@ -98,6 +98,43 @@ solid OpenSCAD_Model
     endloop
   endfacet
 endsolid OpenSCAD_Model`;
+
+
+        setTimeout(() => {
+            stlViewer.stlPayload = `
+solid pyramid
+  facet normal 0.0 0.0 -1.0
+    outer loop
+      vertex 1.0 1.0 0.0
+      vertex -1.0 1.0 0.0
+      vertex 0.0 -1.0 0.0
+    endloop
+  endfacet
+  facet normal 0.0 -1.0 0.5
+    outer loop
+      vertex 0.0 0.0 1.0
+      vertex 0.0 -1.0 0.0
+      vertex -1.0 1.0 0.0
+    endloop
+  endfacet
+  facet normal 0.8944 0.4472 0.0
+    outer loop
+      vertex 0.0 0.0 1.0
+      vertex 1.0 1.0 0.0
+      vertex 0.0 -1.0 0.0
+    endloop
+  endfacet
+  facet normal -0.8944 0.4472 0.0
+    outer loop
+      vertex 0.0 0.0 1.0
+      vertex -1.0 1.0 0.0
+      vertex 1.0 1.0 0.0
+    endloop
+  endfacet
+endsolid pyramid
+            
+`;
+        }, 5000)
     </script>
 </body>
 </html>

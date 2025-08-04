@@ -17,6 +17,7 @@
   let renderer, scene, controls, currentMesh;
   const loader = new STLLoader();
   let animationFrameId;
+  let resizeObserver;
 
   // CAD features State
   let triangleCount = 0;
@@ -69,9 +70,34 @@
     if (stlPayload) {
       updateModel(stlPayload, color);
     }
+
+    const handleResize = () => {
+      if (!renderer || !camera || !container) return;
+
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      if (width === 0 || height === 0) return;
+
+      renderer.setSize(width, height);
+
+      const aspect = width / height;
+      if (camera.isPerspectiveCamera) {
+        camera.aspect = aspect;
+      } else { // Orthographic
+        const frustumHeight = camera.top - camera.bottom;
+        camera.left = -frustumHeight * aspect / 2;
+        camera.right = frustumHeight * aspect / 2;
+      }
+      camera.updateProjectionMatrix();
+    };
+
+    resizeObserver = new ResizeObserver(handleResize);
+    resizeObserver.observe(container);
   });
 
   onDestroy(() => {
+    if (resizeObserver) resizeObserver.disconnect();
     cancelAnimationFrame(animationFrameId);
     if (currentMesh) {
       scene.remove(currentMesh);
@@ -195,30 +221,45 @@
 </script>
 
 <style>
+  .stl-viewer-host {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+  }
   /* ... styles inchangés ... */
   .toolbar { background-color: #2a2a2a; padding: 8px; border-radius: 4px; margin-bottom: 1rem; display: flex; gap: 10px; flex-wrap: wrap; }
   .toolbar button { background-color: #444; color: white; border: 1px solid #666; border-radius: 4px; padding: 5px 10px; cursor: pointer; font-size: 0.9em; }
   .toolbar button:hover { background-color: #555; }
   .info-panel { background-color: #2a2a2a; color: #eee; padding: 8px 12px; border-radius: 4px; margin-bottom: 1rem; display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9em; }
   .info-panel span { background-color: #444; padding: 4px 8px; border-radius: 4px; }
-  .viewer-container { width: 100%; height: 60vh; min-height: 400px; background-color: #1e1e1e; border-radius: 4px; }
+  .viewer-container {
+    width: 100%;
+    background-color: #1e1e1e;
+    border-radius: 4px;
+    flex-grow: 1;
+    min-height: 0;
+  }
 </style>
 
-<div class="toolbar">
-  <button on:click={resetView}>Reset View</button>
-  <button on:click={toggleViewMode}>View: {viewMode}</button>
-  <button on:click={toggleWireframe}>Toggle Wireframe</button>
-  <button on:click={() => setView('top')}>Top</button>
-  <button on:click={() => setView('front')}>Front</button>
-  <button on:click={() => setView('right')}>Right</button>
-</div>
-
-{#if modelDimensions}
-  <div class="info-panel">
-    <strong>Model Info:</strong>
-    <span>Triangles: {triangleCount.toLocaleString()}</span>
-    <span>Dimensions (mm): {modelDimensions.x} x {modelDimensions.y} x {modelDimensions.z}</span>
+<div class="stl-viewer-host">
+  <div class="toolbar">
+    <button on:click={resetView}>Reset View</button>
+    <button on:click={toggleViewMode}>View: {viewMode}</button>
+    <button on:click={toggleWireframe}>Toggle Wireframe</button>
+    <button on:click={() => setView('top')}>Top</button>
+    <button on:click={() => setView('front')}>Front</button>
+    <button on:click={() => setView('right')}>Right</button>
   </div>
-{/if}
 
-<div class="viewer-container" bind:this={container}></div>
+  {#if modelDimensions}
+    <div class="info-panel">
+      <strong>Model Info:</strong>
+      <span>Triangles: {triangleCount.toLocaleString()}</span>
+      <span>Dimensions (mm): {modelDimensions.x} x {modelDimensions.y} x {modelDimensions.z}</span>
+    </div>
+  {/if}
+
+  <div class="viewer-container" bind:this={container}></div>
+</div>

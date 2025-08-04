@@ -222,28 +222,64 @@
 
 <style>
   .stl-viewer-host {
-    display: flex;
-    flex-direction: column;
+    position: relative;
     height: 100%;
     width: 100%;
     overflow: hidden;
   }
-  /* ... styles inchangés ... */
-  .toolbar { background-color: #2a2a2a; padding: 8px; border-radius: 4px; margin-bottom: 1rem; display: flex; gap: 10px; flex-wrap: wrap; }
-  .toolbar button { background-color: #444; color: white; border: 1px solid #666; border-radius: 4px; padding: 5px 10px; cursor: pointer; font-size: 0.9em; }
-  .toolbar button:hover { background-color: #555; }
-  .info-panel { background-color: #2a2a2a; color: #eee; padding: 8px 12px; border-radius: 4px; margin-bottom: 1rem; display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9em; }
-  .info-panel span { background-color: #444; padding: 4px 8px; border-radius: 4px; }
+  .toolbar {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    z-index: 10;
+    background-color: rgba(42, 42, 42, 0.8);
+    padding: 8px;
+    border-radius: 4px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .toolbar button {
+    background-color: #444;
+    color: white;
+    border: 1px solid #666;
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 0.9em;
+  }
+  .toolbar button:hover {
+    background-color: #555;
+  }
+  .info-panel {
+    position: absolute;
+    bottom: 1rem;
+    left: 1rem;
+    z-index: 10;
+    background-color: rgba(42, 42, 42, 0.8);
+    color: #eee;
+    padding: 8px 12px;
+    border-radius: 4px;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    font-size: 0.9em;
+  }
+  .info-panel span {
+    background-color: #444;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
   .viewer-container {
     width: 100%;
+    height: 100%;
     background-color: #1e1e1e;
-    border-radius: 4px;
-    flex-grow: 1;
-    min-height: 0;
   }
 </style>
 
 <div class="stl-viewer-host">
+  <div class="viewer-container" bind:this={container}></div>
+
   <div class="toolbar">
     <button on:click={resetView}>Reset View</button>
     <button on:click={toggleViewMode}>View: {viewMode}</button>
@@ -257,9 +293,9 @@
     <div class="info-panel">
       <strong>Model Info:</strong>
       <span>Triangles: {triangleCount.toLocaleString()}</span>
-      <span>Dimensions (mm): {modelDimensions.x} x {modelDimensions.y} x {modelDimensions.z}</span>
+      <span>
+        Dimensions (mm): {modelDimensions.x} x {modelDimensions.y} x {modelDimensions.z}
+      </span>
     </div>
   {/if}
-
-  <div class="viewer-container" bind:this={container}></div>
 </div>

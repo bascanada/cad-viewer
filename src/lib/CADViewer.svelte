@@ -137,34 +137,37 @@
     const size = boundingBox.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z);
 
-    // Centrer le modèle
+    // Center the model
     currentMesh.position.sub(center);
 
-    if(resetPosition) {
-      if (viewMode === 'perspective') {
-        camera = perspectiveCamera;
-        const fov = camera.fov * (Math.PI / 180);
-        const cameraZ = (maxDim / 2) / Math.tan(fov / 2) * 1.5;
-        camera.position.set(0, 0, cameraZ);
-      } else { // Orthographic
-        camera = orthographicCamera;
-        const aspect = container.clientWidth / container.clientHeight;
-        const camHeight = maxDim * 1.2;
-        const camWidth = camHeight * aspect;
-
-        camera.left = -camWidth / 2;
-        camera.right = camWidth / 2;
-        camera.top = camHeight / 2;
-        camera.bottom = -camHeight / 2;
-        camera.position.set(0, 0, maxDim * 1.5);
-        camera.zoom = 1;
-        camera.updateProjectionMatrix();
-      }
-    }
-    
-    // Mettre à jour les OrbitControls avec la caméra active
-    controls.object = camera;
+    // --- Camera fit logic ---
+    // Keep camera orientation and target, only adjust distance
+    const camDir = new THREE.Vector3();
+    camera.getWorldDirection(camDir);
     controls.target.set(0, 0, 0);
+
+    let fitDist;
+    if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
+      const fov = (camera as THREE.PerspectiveCamera).fov * (Math.PI / 180);
+      fitDist = (maxDim / 2) / Math.tan(fov / 2) * 1.5;
+    } else if ((camera as THREE.OrthographicCamera).isOrthographicCamera) {
+      const aspect = container.clientWidth / container.clientHeight;
+      const camHeight = maxDim * 1.2;
+      const camWidth = camHeight * aspect;
+      const ortho = camera as THREE.OrthographicCamera;
+      ortho.left = -camWidth / 2;
+      ortho.right = camWidth / 2;
+      ortho.top = camHeight / 2;
+      ortho.bottom = -camHeight / 2;
+      fitDist = maxDim * 1.5;
+      ortho.zoom = 1;
+      ortho.updateProjectionMatrix();
+    }
+
+    camera.position.copy(camDir.multiplyScalar(-fitDist));
+    camera.lookAt(0, 0, 0);
+
+    controls.object = camera;
     controls.update();
   }
 
@@ -172,7 +175,11 @@
     if (currentMesh) {
       scene.remove(currentMesh);
       currentMesh.geometry.dispose();
-      currentMesh.material.dispose();
+      if (Array.isArray(currentMesh.material)) {
+        currentMesh.material.forEach(m => m.dispose());
+      } else {
+        currentMesh.material.dispose();
+      }
     }
 
     try {
@@ -226,7 +233,15 @@
   }
 
   function toggleWireframe() {
-    if (currentMesh) { currentMesh.material.wireframe = !currentMesh.material.wireframe; }
+    if (currentMesh) {
+      if (Array.isArray(currentMesh.material)) {
+        currentMesh.material.forEach(m => {
+          if ('wireframe' in m) m.wireframe = !m.wireframe;
+        });
+      } else {
+        if ('wireframe' in currentMesh.material) currentMesh.material.wireframe = !currentMesh.material.wireframe;
+      }
+    }
   }
   
   function toggleViewMode() {

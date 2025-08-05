@@ -2,10 +2,9 @@
 
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import * as THREE from 'three';
-  import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
-  import { ThreeMFLoader } from 'three/examples/jsm/loaders/3MFLoader.js';
-  import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+  import { SceneManager, CameraController, ModelOperations, type ModelInfo, type ViewMode, type ViewDirection } from './three/index.js';
+  import Toolbar from './components/Toolbar.svelte';
+  import InfoPanel from './components/InfoPanel.svelte';
 
   // --- Props ---
   export let payload: string = '';
@@ -27,262 +26,98 @@
 
   // --- Component State ---
   let container: HTMLElement;
-  let renderer: THREE.WebGLRenderer, 
-      scene: THREE.Scene, 
-      controls: OrbitControls, 
-      currentMesh: THREE.Mesh, 
-      gridHelper: THREE.GridHelper;
-  const loader = new STLLoader();
-  const threeMFLoader = new ThreeMFLoader();
-  let animationFrameId;
-  let resizeObserver;
-
-  // CAD features State
-  let triangleCount = 0;
-  let modelDimensions: { x: string, y: string, z: string } | null = null;
-
-  let viewMode = 'perspective'; // 'perspective' ou 'orthographic'
-  let camera: THREE.PerspectiveCamera | THREE.OrthographicCamera; // La caméra active
-  let perspectiveCamera: THREE.PerspectiveCamera, 
-      orthographicCamera: THREE.OrthographicCamera;
-
+  let sceneManager: SceneManager;
+  let cameraController: CameraController;
+  let resizeObserver: ResizeObserver;
+  let modelInfo: ModelInfo = { triangleCount: 0, dimensions: null };
+  let viewMode: ViewMode = 'perspective';
 
   onMount(() => {
-    scene = new THREE.Scene();
+    initializeViewer();
+    setupResizeObserver();
     
-    // We get the computed style of the container to resolve the CSS variable
-    const computedStyle = getComputedStyle(container);
-    scene.background = new THREE.Color(computedStyle.backgroundColor);
-    
-    // ✨ NOUVEAU: Initialiser les deux caméras
-    const aspect = container.clientWidth / container.clientHeight;
-    perspectiveCamera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
-    orthographicCamera = new THREE.OrthographicCamera(-aspect, aspect, 1, -1, 0.1, 1000);
-    camera = perspectiveCamera; // Commencer en mode perspective
-    camera.position.z = 10;
-
-    // Grid and Axes
-    gridHelper = new THREE.GridHelper(100, 100, gridColor, gridCenterLineColor);
-    scene.add(gridHelper);
-    const axesHelper = new THREE.AxesHelper(5);
-    scene.add(axesHelper);
-
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    container.appendChild(renderer.domElement);
-
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-
-    // Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-    scene.add(ambientLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-    directionalLight.position.set(5, 10, 7.5);
-    scene.add(directionalLight);
-    
-    const animate = () => {
-      animationFrameId = requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-    };
-    animate();
-
     if (payload) {
-        updateModel(payload, color);
+      loadModel();
     }
+  });
 
+  onDestroy(() => {
+    cleanup();
+  });
+
+  function initializeViewer() {
+    sceneManager = new SceneManager(container, viewerBackgroundColor, gridColor, gridCenterLineColor);
+    cameraController = new CameraController(
+      sceneManager.perspectiveCamera,
+      sceneManager.orthographicCamera,
+      sceneManager.controls,
+      container
+    );
+    sceneManager.currentCamera = cameraController.currentCamera;
+    sceneManager.startAnimation();
+  }
+
+  function setupResizeObserver() {
     const handleResize = () => {
-      if (!renderer || !camera || !container) return;
-
-      const width = container.clientWidth;
-      const height = container.clientHeight;
-
-      if (width === 0 || height === 0) return;
-
-      renderer.setSize(width, height);
-
-      const aspect = width / height;
-      if (camera.isPerspectiveCamera) {
-        camera.aspect = aspect;
-      } else { // Orthographic
-        const frustumHeight = camera.top - camera.bottom;
-        camera.left = -frustumHeight * aspect / 2;
-        camera.right = frustumHeight * aspect / 2;
-      }
-      camera.updateProjectionMatrix();
+      if (!container) return;
+      const { clientWidth: width, clientHeight: height } = container;
+      sceneManager.resize(width, height);
     };
 
     resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(container);
-  });
-
-  onDestroy(() => {
-    if (resizeObserver) resizeObserver.disconnect();
-    cancelAnimationFrame(animationFrameId);
-    if (currentMesh) {
-      scene.remove(currentMesh);
-      currentMesh.geometry.dispose();
-      currentMesh.material.dispose();
-    }
-    controls.dispose();
-    renderer.dispose();
-  });
-
-  function frameCamera(resetPosition = true) {
-    if (!currentMesh) return;
-
-    const boundingBox = new THREE.Box3().setFromObject(currentMesh);
-    const center = boundingBox.getCenter(new THREE.Vector3());
-    const size = boundingBox.getSize(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z);
-
-    // Center the model
-    currentMesh.position.sub(center);
-
-    // --- Camera fit logic ---
-    // Keep camera orientation and target, only adjust distance
-    const camDir = new THREE.Vector3();
-    camera.getWorldDirection(camDir);
-    controls.target.set(0, 0, 0);
-
-    let fitDist;
-    if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
-      const fov = (camera as THREE.PerspectiveCamera).fov * (Math.PI / 180);
-      fitDist = (maxDim / 2) / Math.tan(fov / 2) * 1.5;
-    } else if ((camera as THREE.OrthographicCamera).isOrthographicCamera) {
-      const aspect = container.clientWidth / container.clientHeight;
-      const camHeight = maxDim * 1.2;
-      const camWidth = camHeight * aspect;
-      const ortho = camera as THREE.OrthographicCamera;
-      ortho.left = -camWidth / 2;
-      ortho.right = camWidth / 2;
-      ortho.top = camHeight / 2;
-      ortho.bottom = -camHeight / 2;
-      fitDist = maxDim * 1.5;
-      ortho.zoom = 1;
-      ortho.updateProjectionMatrix();
-    }
-
-    camera.position.copy(camDir.multiplyScalar(-fitDist));
-    camera.lookAt(0, 0, 0);
-
-    controls.object = camera;
-    controls.update();
   }
 
-  function updateModel(payload: string, modelColor: string) {
-    if (currentMesh) {
-      scene.remove(currentMesh);
-      currentMesh.geometry.dispose();
-      if (Array.isArray(currentMesh.material)) {
-        currentMesh.material.forEach(m => m.dispose());
-      } else {
-        currentMesh.material.dispose();
-      }
-    }
-
-    try {
-      let geometry: THREE.BufferGeometry | undefined;
-      let material: THREE.MeshStandardMaterial;
-      let meshes: THREE.Mesh[] = [];
-      if (payloadType === 'stl') {
-        geometry = loader.parse(payload);
-        material = new THREE.MeshStandardMaterial({
-          color: modelColor,
-          metalness: 0.1,
-          roughness: 0.75,
-        });
-        const mesh = new THREE.Mesh(geometry, material);
-        scene.add(mesh);
-        meshes.push(mesh);
-      } else if (payloadType === '3mf') {
-        const object = threeMFLoader.parse(payload);
-        // Recursively find and add all meshes
-        function addMeshes(obj: any) {
-          if (obj.isMesh) {
-            scene.add(obj);
-            meshes.push(obj);
-          }
-          if (obj.children && obj.children.length) {
-            obj.children.forEach(addMeshes);
-          }
-        }
-        addMeshes(object);
-        if (meshes.length === 0) {
-          throw new Error('No mesh found in 3MF payload');
-        }
-      }
-      if (meshes.length > 0) {
-        // Use the first mesh for info and camera framing
-        currentMesh = meshes[0];
-        const boundingBox = new THREE.Box3().setFromObject(currentMesh);
-        const size = boundingBox.getSize(new THREE.Vector3());
-        triangleCount = meshes.reduce((sum, m) => sum + (m.geometry.attributes.position.count / 3), 0);
-        modelDimensions = { x: size.x.toFixed(2), y: size.y.toFixed(2), z: size.z.toFixed(2) };
-        frameCamera(false);
-      }
-    } catch (error) {
-      console.error(`Failed to parse ${payloadType.toUpperCase()}:`, error);
+  function loadModel() {
+    modelInfo = sceneManager.loadModel(payload, payloadType, color);
+    if (sceneManager.currentMesh) {
+      cameraController.frameToObject(sceneManager.currentMesh, false);
     }
   }
 
-  // --- Toolbar Functions ---
-  function resetView() {
-    frameCamera();
+  function cleanup() {
+    resizeObserver?.disconnect();
+    sceneManager?.dispose();
   }
 
-  function toggleWireframe() {
-    if (currentMesh) {
-      if (Array.isArray(currentMesh.material)) {
-        currentMesh.material.forEach(m => {
-          if ('wireframe' in m) m.wireframe = !m.wireframe;
-        });
-      } else {
-        if ('wireframe' in currentMesh.material) currentMesh.material.wireframe = !currentMesh.material.wireframe;
-      }
+  // --- Toolbar Handlers ---
+  function handleResetView() {
+    if (sceneManager.currentMesh) {
+      cameraController.frameToObject(sceneManager.currentMesh);
     }
   }
-  
-  function toggleViewMode() {
-    viewMode = (viewMode === 'perspective') ? 'orthographic' : 'perspective';
-    resetView();
+
+  function handleToggleViewMode() {
+    viewMode = cameraController.toggleViewMode();
+    sceneManager.currentCamera = cameraController.currentCamera;
+    sceneManager.controls.object = sceneManager.currentCamera;
+    handleResetView();
   }
 
-  function setView(view: 'top' | 'front' | 'right') {
-    const distance = camera.position.length();
-    controls.target.set(0, 0, 0);
-    camera.up.set(0, 1, 0);
-
-    switch (view) {
-      case 'top':
-        camera.position.set(0, distance, 0);
-        camera.up.set(0, 0, -1);
-        break;
-      case 'front':
-        camera.position.set(0, 0, distance);
-        break;
-      case 'right':
-        camera.position.set(distance, 0, 0);
-        break;
-    }
-    controls.update();
+  function handleToggleWireframe() {
+    ModelOperations.toggleWireframe(sceneManager.currentMesh);
   }
 
-  $: if (scene && payload) {
-      updateModel(payload, color);
+  function handleSetView(view: ViewDirection) {
+    cameraController.setView(view);
   }
 
-  $: if (scene && container) {
+  // --- Reactive Statements ---
+  $: if (sceneManager && payload) {
+    loadModel();
+  }
+
+  $: if (sceneManager && container) {
     const computedStyle = getComputedStyle(container);
-    scene.background = new THREE.Color(computedStyle.backgroundColor);
+    sceneManager.updateBackgroundColor(computedStyle.backgroundColor);
   }
 
-  $: if (scene && gridHelper) {
-    scene.remove(gridHelper);
-    gridHelper.dispose();
-    gridHelper = new THREE.GridHelper(100, 100, gridColor, gridCenterLineColor);
-    scene.add(gridHelper);
+  $: if (sceneManager) {
+    sceneManager.updateGrid(gridColor, gridCenterLineColor);
+  }
+
+  $: if (sceneManager?.currentMesh) {
+    ModelOperations.updateMeshColor(sceneManager.currentMesh, color);
   }
 </script>
 
@@ -293,49 +128,7 @@
     width: 100%;
     overflow: hidden;
   }
-  .toolbar {
-    position: absolute;
-    top: 1rem;
-    left: 1rem;
-    z-index: 10;
-    background-color: var(--toolbar-background-color);
-    padding: 8px;
-    border-radius: 4px;
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-  .toolbar button {
-    background-color: var(--toolbar-button-background-color);
-    color: var(--toolbar-button-foreground-color);
-    border: 1px solid var(--toolbar-button-border-color);
-    border-radius: 4px;
-    padding: 5px 10px;
-    cursor: pointer;
-    font-size: 0.9em;
-  }
-  .toolbar button:hover {
-    background-color: var(--toolbar-button-hover-background-color);
-  }
-  .info-panel {
-    position: absolute;
-    bottom: 1rem;
-    left: 1rem;
-    z-index: 10;
-    background-color: var(--info-panel-background-color);
-    color: var(--info-panel-foreground-color);
-    padding: 8px 12px;
-    border-radius: 4px;
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
-    font-size: 0.9em;
-  }
-  .info-panel span {
-    background-color: var(--info-panel-span-background-color);
-    padding: 4px 8px;
-    border-radius: 4px;
-  }
+  
   .viewer-container {
     width: 100%;
     height: 100%;
@@ -345,36 +138,27 @@
 
 <div 
   class="stl-viewer-host"
-  style="
-    --viewer-background-color: {viewerBackgroundColor};
-    --toolbar-background-color: {toolbarBackgroundColor};
-    --toolbar-button-background-color: {toolbarButtonBackgroundColor};
-    --toolbar-button-hover-background-color: {toolbarButtonHoverBackgroundColor};
-    --toolbar-button-foreground-color: {toolbarButtonForegroundColor};
-    --toolbar-button-border-color: {toolbarButtonBorderColor};
-    --info-panel-background-color: {infoPanelBackgroundColor};
-    --info-panel-foreground-color: {infoPanelForegroundColor};
-    --info-panel-span-background-color: {infoPanelSpanBackgroundColor};
-  "
+  style="--viewer-background-color: {viewerBackgroundColor};"
 >
   <div class="viewer-container" bind:this={container}></div>
 
-  <div class="toolbar">
-    <button on:click={resetView}>Reset View</button>
-    <button on:click={toggleViewMode}>View: {viewMode}</button>
-    <button on:click={toggleWireframe}>Toggle Wireframe</button>
-    <button on:click={() => setView('top')}>Top</button>
-    <button on:click={() => setView('front')}>Front</button>
-    <button on:click={() => setView('right')}>Right</button>
-  </div>
+  <Toolbar
+    {viewMode}
+    onResetView={handleResetView}
+    onToggleViewMode={handleToggleViewMode}
+    onToggleWireframe={handleToggleWireframe}
+    onSetView={handleSetView}
+    {toolbarBackgroundColor}
+    {toolbarButtonBackgroundColor}
+    {toolbarButtonHoverBackgroundColor}
+    {toolbarButtonForegroundColor}
+    {toolbarButtonBorderColor}
+  />
 
-  {#if modelDimensions}
-    <div class="info-panel">
-      <strong>Model Info:</strong>
-      <span>Triangles: {triangleCount.toLocaleString()}</span>
-      <span>
-        Dimensions (mm): {modelDimensions.x} x {modelDimensions.y} x {modelDimensions.z}
-      </span>
-    </div>
-  {/if}
+  <InfoPanel
+    {modelInfo}
+    {infoPanelBackgroundColor}
+    {infoPanelForegroundColor}
+    {infoPanelSpanBackgroundColor}
+  />
 </div>

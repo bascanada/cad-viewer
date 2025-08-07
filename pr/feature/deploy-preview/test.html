@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CAD Viewer Test</title>
+  <script type="module" src="/src/main.ts"></script>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+    }
+    cad-viewer {
+      display: block;
+      height: 100%;
+      width: 100%;
+    }
+    .controls {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      z-index: 20;
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <button id="loadCube">Load Cube</button>
+  </div>
+  <cad-viewer></cad-viewer>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const cadViewer = document.querySelector('cad-viewer');
+      const loadCubeButton = document.getElementById('loadCube');
+
+      loadCubeButton.addEventListener('click', () => {
+        fetch('/cube.stl')
+          .then(response => response.text())
+          .then(data => {
+            cadViewer.setAttribute('payload', data);
+            cadViewer.setAttribute('payloadType', 'stl');
+          });
+      });
+    });
+  </script>
+</body>
+</html>

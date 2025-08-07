@@ -102,6 +102,24 @@
     cameraController.setView(view);
   }
 
+  function handleUndo() {
+    sceneManager.undo();
+    modelInfo = sceneManager.calculateModelInfo(sceneManager.modelHistory);
+  }
+
+  function handleRedo() {
+    sceneManager.redo();
+    modelInfo = sceneManager.calculateModelInfo(sceneManager.modelHistory);
+  }
+
+  function handleExport() {
+    const { clientWidth: width, clientHeight: height } = container;
+    sceneManager.exportScreenshot(width, height).then((dataUrl) => {
+      const event = new CustomEvent('screenshot', { detail: dataUrl });
+      window.dispatchEvent(event);
+    });
+  }
+
   // --- Reactive Statements ---
   $: if (sceneManager && payload) {
     loadModel();
@@ -148,6 +166,11 @@
     onToggleViewMode={handleToggleViewMode}
     onToggleWireframe={handleToggleWireframe}
     onSetView={handleSetView}
+    onExport={handleExport}
+    onUndo={handleUndo}
+    onRedo={handleRedo}
+    historyIndex={sceneManager?.historyIndex ?? 0}
+    historyCount={sceneManager?.modelHistory.length ?? 0}
     {toolbarBackgroundColor}
     {toolbarButtonBackgroundColor}
     {toolbarButtonHoverBackgroundColor}

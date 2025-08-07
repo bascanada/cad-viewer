@@ -6,6 +6,11 @@
   export let onToggleViewMode: () => void;
   export let onToggleWireframe: () => void;
   export let onSetView: (view: ViewDirection) => void;
+  export let onExport: () => void;
+  export let onUndo: () => void;
+  export let onRedo: () => void;
+  export let historyIndex: number;
+  export let historyCount: number;
 
   // Theme props
   export let toolbarBackgroundColor: string;
@@ -31,6 +36,12 @@
   <button on:click={() => onSetView('top')}>Top</button>
   <button on:click={() => onSetView('front')}>Front</button>
   <button on:click={() => onSetView('right')}>Right</button>
+  <button on:click={onExport}>Export</button>
+  <div class="history-controls">
+    <button on:click={onUndo} disabled={historyIndex <= 0}>Undo</button>
+    <span>{historyIndex + 1} / {historyCount}</span>
+    <button on:click={onRedo} disabled={historyIndex >= historyCount - 1}>Redo</button>
+  </div>
 </div>
 
 <style>
@@ -59,5 +70,22 @@
   
   .toolbar button:hover {
     background-color: var(--toolbar-button-hover-background-color);
+  }
+
+  .history-controls {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .history-controls span {
+    padding: 0 5px;
+    font-size: 0.9em;
+    color: var(--toolbar-button-foreground-color);
+  }
+
+  .history-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>

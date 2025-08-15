@@ -1,0 +1,154 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get tag information
+        id: tag-info
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG_NAME#v}
+          echo "tag-name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Tag: $TAG_NAME, Version: $VERSION"
+
+      - name: Get previous tag
+        id: prev-tag
+        run: |
+          # Get the previous tag (excluding the current one)
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${{ steps.tag-info.outputs.tag-name }}$" | head -n 1)
+          if [ -z "$PREV_TAG" ]; then
+            # If no previous tag, use the first commit
+            PREV_TAG=$(git rev-list --max-parents=0 HEAD)
+            echo "No previous tag found, using first commit: $PREV_TAG"
+          else
+            echo "Previous tag: $PREV_TAG"
+          fi
+          echo "prev-tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          TAG_NAME="${{ steps.tag-info.outputs.tag-name }}"
+          PREV_TAG="${{ steps.prev-tag.outputs.prev-tag }}"
+          
+          echo "Generating changelog from $PREV_TAG to $TAG_NAME"
+          
+          # Create changelog with commit messages
+          CHANGELOG_FILE="CHANGELOG.md"
+          
+          echo "# Release $TAG_NAME" > $CHANGELOG_FILE
+          echo "" >> $CHANGELOG_FILE
+          echo "## 🚀 What's Changed" >> $CHANGELOG_FILE
+          echo "" >> $CHANGELOG_FILE
+          
+          # Get commits between tags with better formatting
+          git log --pretty=format:"- %s (%h)" "$PREV_TAG..$TAG_NAME" >> $CHANGELOG_FILE
+          
+          # If no commits found, add a note
+          if [ ! -s $CHANGELOG_FILE ]; then
+            echo "- Initial release" >> $CHANGELOG_FILE
+          fi
+          
+          echo "" >> $CHANGELOG_FILE
+          echo "" >> $CHANGELOG_FILE
+          echo "## 📊 Stats" >> $CHANGELOG_FILE
+          echo "" >> $CHANGELOG_FILE
+          
+          # Add commit count
+          COMMIT_COUNT=$(git rev-list --count "$PREV_TAG..$TAG_NAME" 2>/dev/null || echo "1")
+          echo "- **Commits in this release:** $COMMIT_COUNT" >> $CHANGELOG_FILE
+          
+          # Add contributors
+          CONTRIBUTORS=$(git log --pretty=format:"%an" "$PREV_TAG..$TAG_NAME" | sort -u | wc -l)
+          echo "- **Contributors:** $CONTRIBUTORS" >> $CHANGELOG_FILE
+          
+          echo "" >> $CHANGELOG_FILE
+          echo "---" >> $CHANGELOG_FILE
+          echo "" >> $CHANGELOG_FILE
+          echo "**Full Changelog:** https://github.com/${{ github.repository }}/compare/$PREV_TAG...$TAG_NAME" >> $CHANGELOG_FILE
+          
+          # Read the changelog content for the release
+          CHANGELOG_CONTENT=$(cat $CHANGELOG_FILE)
+          
+          # Save changelog to output (properly escaped for GitHub Actions)
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Create release archive
+        run: |
+          # Create a release archive with the built assets
+          mkdir -p release-assets
+          
+          # Copy built files
+          cp -r dist/ release-assets/
+          cp package.json release-assets/
+          cp README.md release-assets/ 2>/dev/null || echo "README.md not found"
+          
+          # Create tarball
+          tar -czf cad-viewer-${{ steps.tag-info.outputs.version }}.tar.gz -C release-assets .
+          
+          # Create zip
+          cd release-assets && zip -r ../cad-viewer-${{ steps.tag-info.outputs.version }}.zip . && cd ..
+
+      - name: Create GitHub Release
+        id: create-release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag-info.outputs.tag-name }}
+          release_name: Release ${{ steps.tag-info.outputs.tag-name }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: ${{ contains(steps.tag-info.outputs.tag-name, '-') }}
+
+      - name: Upload Release Assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create-release.outputs.upload_url }}
+          asset_path: ./cad-viewer-${{ steps.tag-info.outputs.version }}.tar.gz
+          asset_name: cad-viewer-${{ steps.tag-info.outputs.version }}.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload Release Assets (ZIP)
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create-release.outputs.upload_url }}
+          asset_path: ./cad-viewer-${{ steps.tag-info.outputs.version }}.zip
+          asset_name: cad-viewer-${{ steps.tag-info.outputs.version }}.zip
+          asset_content_type: application/zip

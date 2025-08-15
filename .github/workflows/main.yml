@@ -68,9 +68,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: demo-site
-          path: |
-            index.html
-            dist/
+          path: dist/
           retention-days: 7
 
   publish-npm:

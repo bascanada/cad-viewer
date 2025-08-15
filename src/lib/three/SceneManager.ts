@@ -17,6 +17,8 @@ export class SceneManager {
   public currentCamera: THREE.PerspectiveCamera | THREE.OrthographicCamera;
   public currentMesh: THREE.Mesh | null = null;
   public gridHelper!: THREE.GridHelper;
+  private gridSize = 100;
+  private gridDivisions = 100;
 
   private stlLoader = new STLLoader();
   private threeMFLoader = new ThreeMFLoader();
@@ -46,7 +48,7 @@ export class SceneManager {
   }
 
   private setupGrid(gridColor: string, gridCenterLineColor: string) {
-    this.gridHelper = new THREE.GridHelper(100, 100, gridColor, gridCenterLineColor);
+    this.gridHelper = new THREE.GridHelper(this.gridSize, this.gridDivisions, gridColor, gridCenterLineColor);
     this.scene.add(this.gridHelper);
     
     const axesHelper = new THREE.AxesHelper(5);
@@ -90,9 +92,30 @@ export class SceneManager {
   }
 
   public updateGrid(gridColor: string, gridCenterLineColor: string) {
+    this.gridHelper.material.dispose();
+    this.scene.remove(this.gridHelper);
+    this.gridHelper = new THREE.GridHelper(
+      this.gridSize,
+      this.gridDivisions,
+      gridColor,
+      gridCenterLineColor
+    );
+    this.scene.add(this.gridHelper);
+  }
+
+  public updateGridSize(size: number) {
+    this.gridSize = Math.max(size * 2, 20);
     this.scene.remove(this.gridHelper);
     this.gridHelper.dispose();
-    this.gridHelper = new THREE.GridHelper(100, 100, gridColor, gridCenterLineColor);
+
+    console.log('this.gridHelper', this.gridSize);
+    this.gridHelper = new THREE.GridHelper(
+      this.gridSize,
+      this.gridDivisions,
+      this.gridHelper.material.color,
+      this.gridHelper.material.color
+    );
+    console.log('this.gridHelper', this.gridSize);
     this.scene.add(this.gridHelper);
   }
 
@@ -149,6 +172,8 @@ export class SceneManager {
 
     const boundingBox = new THREE.Box3().setFromObject(this.currentMesh);
     const size = boundingBox.getSize(new THREE.Vector3());
+    const maxSize = Math.max(size.x, size.y, size.z);
+    this.updateGridSize(maxSize);
     const triangleCount = meshes.reduce(
       (sum, m) => sum + (m.geometry.attributes.position.count / 3), 
       0

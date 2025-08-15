@@ -102,6 +102,10 @@
     cameraController.setView(view);
   }
 
+  function handleExportPNG() {
+    sceneManager.exportScreenshot();
+  }
+
   // --- Reactive Statements ---
   $: if (sceneManager && payload) {
     loadModel();
@@ -148,6 +152,7 @@
     onToggleViewMode={handleToggleViewMode}
     onToggleWireframe={handleToggleWireframe}
     onSetView={handleSetView}
+    onExportPNG={handleExportPNG}
     {toolbarBackgroundColor}
     {toolbarButtonBackgroundColor}
     {toolbarButtonHoverBackgroundColor}

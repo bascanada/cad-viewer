@@ -6,6 +6,7 @@
   export let onToggleViewMode: () => void;
   export let onToggleWireframe: () => void;
   export let onSetView: (view: ViewDirection) => void;
+  export let onExportPNG: () => void;
 
   // Theme props
   export let toolbarBackgroundColor: string;
@@ -31,6 +32,7 @@
   <button on:click={() => onSetView('top')}>Top</button>
   <button on:click={() => onSetView('front')}>Front</button>
   <button on:click={() => onSetView('right')}>Right</button>
+  <button on:click={onExportPNG}>Export PNG</button>
 </div>
 
 <style>

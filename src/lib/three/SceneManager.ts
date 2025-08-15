@@ -63,7 +63,10 @@ export class SceneManager {
   }
 
   private setupRenderer(container: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      preserveDrawingBuffer: true,
+    });
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     container.appendChild(this.renderer.domElement);
   }
@@ -191,6 +194,15 @@ export class SceneManager {
     }
     
     this.currentCamera.updateProjectionMatrix();
+  }
+
+  public exportScreenshot() {
+    this.renderer.render(this.scene, this.currentCamera);
+    const dataURL = this.renderer.domElement.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = dataURL;
+    link.download = 'screenshot.png';
+    link.click();
   }
 
   public dispose() {

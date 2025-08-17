@@ -22,7 +22,7 @@ export class OrientationGizmo {
   private options: Required<OrientationGizmoOptions>;
   
   // Callback for when axis is clicked
-  public onAxisClick?: (direction: ViewDirection) => void;
+  public onAxisClick?: (direction: THREE.Vector3) => void;
 
   constructor(
     container: HTMLElement,
@@ -295,12 +295,9 @@ export class OrientationGizmo {
 
     corners.forEach(corner => {
         const geometry = new THREE.BufferGeometry();
-        const vertices = new Float32Array([
-            corner.v[0][0], corner.v[0][1], corner.v[0][2],
-            corner.v[1][0], corner.v[1][1], corner.v[1][2],
-            corner.v[2][0], corner.v[2][1], corner.v[2][2],
-        ]);
+        const vertices = new Float32Array(corner.v.flat());
         geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        geometry.setIndex([0, 1, 2]);
         geometry.computeVertexNormals();
         const mesh = new THREE.Mesh(geometry, material.clone());
         mesh.userData = { type: 'corner', corner: corner.name };
@@ -441,7 +438,7 @@ export class OrientationGizmo {
   private handleCubeInteraction(target: any) {
     if (!this.onAxisClick) return;
     
-    let direction: ViewDirection;
+    let direction: THREE.Vector3;
     
     switch (target.type) {
       case 'face':
@@ -457,51 +454,51 @@ export class OrientationGizmo {
         return;
     }
     
-    this.onAxisClick(direction);
+    this.onAxisClick(direction.normalize());
   }
 
-  private getFaceDirection(face: string): ViewDirection {
+  private getFaceDirection(face: string): THREE.Vector3 {
     switch (face) {
-      case 'front': return 'front';
-      case 'back': return 'back';
-      case 'left': return 'left';
-      case 'right': return 'right';
-      case 'top': return 'top';
-      case 'bottom': return 'bottom';
-      default: return 'front';
+      case 'front': return new THREE.Vector3(0, 0, 1);
+      case 'back': return new THREE.Vector3(0, 0, -1);
+      case 'left': return new THREE.Vector3(-1, 0, 0);
+      case 'right': return new THREE.Vector3(1, 0, 0);
+      case 'top': return new THREE.Vector3(0, 1, 0);
+      case 'bottom': return new THREE.Vector3(0, -1, 0);
+      default: return new THREE.Vector3(0, 0, 1);
     }
   }
 
-  private getEdgeDirection(edge: string): ViewDirection {
-    // For edges, choose the dominant direction or create diagonal views
-    // For now, let's map to the closest orthogonal view
-    if (edge.includes('front') && edge.includes('top')) return 'front';
-    if (edge.includes('front') && edge.includes('bottom')) return 'front';
-    if (edge.includes('back') && edge.includes('top')) return 'back';
-    if (edge.includes('back') && edge.includes('bottom')) return 'back';
-    if (edge.includes('right') && edge.includes('top')) return 'right';
-    if (edge.includes('right') && edge.includes('bottom')) return 'right';
-    if (edge.includes('left') && edge.includes('top')) return 'left';
-    if (edge.includes('left') && edge.includes('bottom')) return 'left';
-    
-    // Vertical edges - choose the face direction
-    if (edge.includes('front')) return 'front';
-    if (edge.includes('back')) return 'back';
-    if (edge.includes('left')) return 'left';
-    if (edge.includes('right')) return 'right';
-    
-    return 'front';
+  private getEdgeDirection(edge: string): THREE.Vector3 {
+    const directions: { [key: string]: THREE.Vector3 } = {
+      'top-front': new THREE.Vector3(0, 1, 1),
+      'top-back': new THREE.Vector3(0, 1, -1),
+      'top-left': new THREE.Vector3(-1, 1, 0),
+      'top-right': new THREE.Vector3(1, 1, 0),
+      'bottom-front': new THREE.Vector3(0, -1, 1),
+      'bottom-back': new THREE.Vector3(0, -1, -1),
+      'bottom-left': new THREE.Vector3(-1, -1, 0),
+      'bottom-right': new THREE.Vector3(1, -1, 0),
+      'front-left': new THREE.Vector3(-1, 0, 1),
+      'front-right': new THREE.Vector3(1, 0, 1),
+      'back-left': new THREE.Vector3(-1, 0, -1),
+      'back-right': new THREE.Vector3(1, 0, -1),
+    };
+    return (directions[edge] || new THREE.Vector3(0, 0, 1));
   }
 
-  private getCornerDirection(corner: string): ViewDirection {
-    // For corners, provide isometric-like views by choosing the most prominent direction
-    if (corner.includes('front') && corner.includes('right')) return 'front';
-    if (corner.includes('front') && corner.includes('left')) return 'front';
-    if (corner.includes('back') && corner.includes('right')) return 'back';
-    if (corner.includes('back') && corner.includes('left')) return 'back';
-    
-    // Default fallback
-    return 'front';
+  private getCornerDirection(corner: string): THREE.Vector3 {
+    const directions: { [key: string]: THREE.Vector3 } = {
+        'top-right-front': new THREE.Vector3(1, 1, 1),
+        'top-left-front': new THREE.Vector3(-1, 1, 1),
+        'top-right-back': new THREE.Vector3(1, 1, -1),
+        'top-left-back': new THREE.Vector3(-1, 1, -1),
+        'bottom-right-front': new THREE.Vector3(1, -1, 1),
+        'bottom-left-front': new THREE.Vector3(-1, -1, 1),
+        'bottom-right-back': new THREE.Vector3(1, -1, -1),
+        'bottom-left-back': new THREE.Vector3(-1, -1, -1),
+    };
+    return (directions[corner] || new THREE.Vector3(1, 1, 1));
   }
 
   private flashAxis(axis: string) {
@@ -528,13 +525,12 @@ export class OrientationGizmo {
     });
   }
 
-  private getViewDirectionFromAxis(axis: string): ViewDirection {
-    // Simple mapping - could be enhanced based on current camera position
+  private getViewDirectionFromAxis(axis: string): THREE.Vector3 {
     switch (axis) {
-      case 'x': return 'right';
-      case 'y': return 'top';
-      case 'z': return 'front';
-      default: return 'front';
+      case 'x': return new THREE.Vector3(1, 0, 0);
+      case 'y': return new THREE.Vector3(0, 1, 0);
+      case 'z': return new THREE.Vector3(0, 0, 1);
+      default: return new THREE.Vector3(0, 0, 1);
     }
   }
 

@@ -96,8 +96,19 @@ export class SceneManager {
     });
     
     // Handle axis clicks to change view
-    this.orientationGizmo.onAxisClick = (direction: ViewDirection) => {
-      this.setViewDirection(direction);
+    this.orientationGizmo.onAxisClick = (direction: THREE.Vector3) => {
+      if (!this.currentMesh) return;
+
+      const distance = this.currentMesh.geometry.boundingSphere.radius * 2;
+      const position = direction.multiplyScalar(distance);
+
+      const box = new THREE.Box3().setFromObject(this.currentMesh);
+      const center = box.getCenter(new THREE.Vector3());
+
+      this.currentCamera.position.copy(center.clone().add(position));
+      this.currentCamera.lookAt(center);
+      this.controls.target.copy(center);
+      this.controls.update();
     };
   }
 

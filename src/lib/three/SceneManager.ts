@@ -56,9 +56,6 @@ export class SceneManager {
   private setupGrid(gridColor: string, gridCenterLineColor: string) {
     this.gridHelper = new THREE.GridHelper(this.gridSize, this.gridDivisions, gridColor, gridCenterLineColor);
     this.scene.add(this.gridHelper);
-    
-    const axesHelper = new THREE.AxesHelper(5);
-    this.scene.add(axesHelper);
   }
 
   private setupLighting() {

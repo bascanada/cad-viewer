@@ -81,12 +81,12 @@ export class OrientationGizmo {
   private setupGizmoScene() {
     this.gizmoScene = new THREE.Scene();
     
-    // Add subtle ambient light
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // Add strong ambient light to ensure all faces are well-lit
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
     this.gizmoScene.add(ambientLight);
     
-    // Add directional light
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    // Add a subtle directional light to give some definition
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.2);
     directionalLight.position.set(1, 1, 1);
     this.gizmoScene.add(directionalLight);
   }
@@ -129,11 +129,11 @@ export class OrientationGizmo {
     
     const faces = [
       { name: 'front', color: 0x3333ff, pos: [0, 0, size/2], rot: [0, 0, 0], label: 'FRONT' },
-      { name: 'back', color: 0x6666ff, pos: [0, 0, -size/2], rot: [0, Math.PI, 0], label: 'BACK' },
+      { name: 'back', color: 0x3333ff, pos: [0, 0, -size/2], rot: [0, Math.PI, 0], label: 'BACK' },
       { name: 'right', color: 0xff3333, pos: [size/2, 0, 0], rot: [0, Math.PI/2, 0], label: 'RIGHT' },
-      { name: 'left', color: 0xff6666, pos: [-size/2, 0, 0], rot: [0, -Math.PI/2, 0], label: 'LEFT' },
-      { name: 'top', color: 0x33ff33, pos: [0, size/2, 0], rot: [-Math.PI/2, 0, 0], label: 'TOP' },
-      { name: 'bottom', color: 0x66ff66, pos: [0, -size/2, 0], rot: [Math.PI/2, 0, 0], label: 'BOTTOM' }
+      { name: 'left', color: 0xff3333, pos: [-size/2, 0, 0], rot: [0, -Math.PI/2, 0], label: 'LEFT' },
+      { name: 'top', color: 0x2E8B57, pos: [0, size/2, 0], rot: [-Math.PI/2, 0, 0], label: 'TOP' },
+      { name: 'bottom', color: 0x2E8B57, pos: [0, -size/2, 0], rot: [Math.PI/2, 0, 0], label: 'BOTTOM' }
     ];
 
     faces.forEach(face => {
@@ -217,7 +217,7 @@ export class OrientationGizmo {
     });
   }
 
-  private createFaceMaterial(label: string, color: number): THREE.MeshLambertMaterial {
+  private createFaceMaterial(label: string, color: number): THREE.MeshBasicMaterial {
     // Create a canvas to draw the label
     const canvas = document.createElement('canvas');
     canvas.width = 128;
@@ -228,14 +228,9 @@ export class OrientationGizmo {
     context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
     context.fillRect(0, 0, 128, 128);
     
-    // Add border
-    context.strokeStyle = '#ffffff';
-    context.lineWidth = 4;
-    context.strokeRect(2, 2, 124, 124);
-    
     // Add text
     context.fillStyle = '#ffffff';
-    context.font = 'bold 14px Arial';
+    context.font = 'bold 24px Arial';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.fillText(label, 64, 64);
@@ -243,7 +238,7 @@ export class OrientationGizmo {
     // Create texture from canvas
     const texture = new THREE.CanvasTexture(canvas);
     
-    return new THREE.MeshLambertMaterial({ 
+    return new THREE.MeshBasicMaterial({ 
       map: texture,
       transparent: false 
     });

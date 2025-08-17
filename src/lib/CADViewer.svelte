@@ -2,7 +2,7 @@
 
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { SceneManager, CameraController, ModelOperations, type ModelInfo, type ViewMode, type ViewDirection } from './three/index.js';
+  import { SceneManager, CameraController, ModelOperations, type ModelInfo, type ViewMode } from './three/index.js';
   import Toolbar from './components/Toolbar.svelte';
   import InfoPanel from './components/InfoPanel.svelte';
 
@@ -13,6 +13,10 @@
   export let viewerBackgroundColor = '#1e1e1e';
   export let gridColor = '#888888';
   export let gridCenterLineColor = '#444444';
+  export let gizmoScale = 1.0; // Multiplier for orientation gizmo size (1.0 = default size)
+
+  // Ensure gizmoScale is always a number (custom elements pass attributes as strings)
+  $: gizmoScaleNumber = typeof gizmoScale === 'string' ? parseFloat(gizmoScale) || 1.0 : gizmoScale;
 
   // --- Themeable properties ---
   export let toolbarBackgroundColor = 'rgba(42, 42, 42, 0.8)';
@@ -46,14 +50,14 @@
   });
 
   function initializeViewer() {
-    sceneManager = new SceneManager(container, viewerBackgroundColor, gridColor, gridCenterLineColor);
+    sceneManager = new SceneManager(container, viewerBackgroundColor, gridColor, gridCenterLineColor, gizmoScaleNumber);
     cameraController = new CameraController(
       sceneManager.perspectiveCamera,
       sceneManager.orthographicCamera,
       sceneManager.controls,
       container
     );
-    sceneManager.currentCamera = cameraController.currentCamera;
+    sceneManager.updateCurrentCamera(cameraController.currentCamera);
     sceneManager.startAnimation();
   }
 
@@ -81,25 +85,17 @@
   }
 
   // --- Toolbar Handlers ---
-  function handleResetView() {
+  function handleToggleViewMode() {
+    viewMode = cameraController.toggleViewMode();
+    sceneManager.updateCurrentCamera(cameraController.currentCamera);
+    sceneManager.controls.object = sceneManager.currentCamera;
     if (sceneManager.currentMesh) {
       cameraController.frameToObject(sceneManager.currentMesh);
     }
   }
 
-  function handleToggleViewMode() {
-    viewMode = cameraController.toggleViewMode();
-    sceneManager.currentCamera = cameraController.currentCamera;
-    sceneManager.controls.object = sceneManager.currentCamera;
-    handleResetView();
-  }
-
   function handleToggleWireframe() {
     ModelOperations.toggleWireframe(sceneManager.currentMesh);
-  }
-
-  function handleSetView(view: ViewDirection) {
-    cameraController.setView(view);
   }
 
   function handleExportPNG() {
@@ -122,6 +118,10 @@
 
   $: if (sceneManager?.currentMesh) {
     ModelOperations.updateMeshColor(sceneManager.currentMesh, color);
+  }
+
+  $: if (sceneManager && gizmoScaleNumber) {
+    sceneManager.updateGizmoScale(gizmoScaleNumber);
   }
 </script>
 
@@ -148,10 +148,8 @@
 
   <Toolbar
     {viewMode}
-    onResetView={handleResetView}
     onToggleViewMode={handleToggleViewMode}
     onToggleWireframe={handleToggleWireframe}
-    onSetView={handleSetView}
     onExportPNG={handleExportPNG}
     {toolbarBackgroundColor}
     {toolbarButtonBackgroundColor}

@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 export type ViewMode = 'perspective' | 'orthographic';
-export type ViewDirection = 'top' | 'front' | 'right';
 
 export class CameraController {
   public viewMode: ViewMode = 'perspective';
@@ -22,26 +21,6 @@ export class CameraController {
     this.viewMode = this.viewMode === 'perspective' ? 'orthographic' : 'perspective';
     this.controls.object = this.currentCamera;
     return this.viewMode;
-  }
-
-  public setView(direction: ViewDirection) {
-    const distance = this.currentCamera.position.length();
-    this.controls.target.set(0, 0, 0);
-    this.currentCamera.up.set(0, 1, 0);
-
-    switch (direction) {
-      case 'top':
-        this.currentCamera.position.set(0, distance, 0);
-        this.currentCamera.up.set(0, 0, -1);
-        break;
-      case 'front':
-        this.currentCamera.position.set(0, 0, distance);
-        break;
-      case 'right':
-        this.currentCamera.position.set(distance, 0, 0);
-        break;
-    }
-    this.controls.update();
   }
 
   public frameToObject(mesh: THREE.Mesh, resetPosition = true) {

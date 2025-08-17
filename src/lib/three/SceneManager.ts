@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { ThreeMFLoader } from 'three/examples/jsm/loaders/3MFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { OrientationGizmo, type ViewDirection } from './OrientationGizmo.js';
 
 export interface ModelInfo {
   triangleCount: number;
@@ -19,6 +20,8 @@ export class SceneManager {
   public gridHelper!: THREE.GridHelper;
   private gridSize = 100;
   private gridDivisions = 100;
+  private orientationGizmo: OrientationGizmo | null = null;
+  private gizmoScale: number = 1.0; // Store the gizmo scale multiplier
 
   private stlLoader = new STLLoader();
   private threeMFLoader = new ThreeMFLoader();
@@ -28,10 +31,12 @@ export class SceneManager {
     container: HTMLElement,
     backgroundColor: string,
     gridColor: string,
-    gridCenterLineColor: string
+    gridCenterLineColor: string,
+    gizmoScale: number = 1.0
   ) {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(backgroundColor);
+    this.gizmoScale = gizmoScale; // Store the gizmo scale
 
     // Initialize cameras
     const aspect = container.clientWidth / container.clientHeight;
@@ -45,6 +50,7 @@ export class SceneManager {
     this.setupLighting();
     this.setupRenderer(container);
     this.setupControls();
+    this.setupOrientationGizmo(container);
   }
 
   private setupGrid(gridColor: string, gridCenterLineColor: string) {
@@ -78,17 +84,104 @@ export class SceneManager {
     this.controls.enableDamping = true;
   }
 
+  private setupOrientationGizmo(container: HTMLElement) {
+    const baseSize = 240; // Base size in pixels
+    const scaledSize = Math.round(baseSize * this.gizmoScale);
+    
+    this.orientationGizmo = new OrientationGizmo(container, this.currentCamera, {
+      position: 'bottom-right',
+      size: scaledSize, // Apply scale multiplier to the base size
+      margin: 20,
+      style: 'cube' // Use the new cube style like FreeCAD
+    });
+    
+    // Handle axis clicks to change view
+    this.orientationGizmo.onAxisClick = (direction: ViewDirection) => {
+      this.setViewDirection(direction);
+    };
+  }
+
+  private setViewDirection(direction: ViewDirection) {
+    if (!this.currentMesh) return;
+    
+    const distance = 50; // Distance from object
+    const position = new THREE.Vector3();
+    
+    switch (direction) {
+      case 'front':
+        position.set(0, 0, distance);
+        break;
+      case 'back':
+        position.set(0, 0, -distance);
+        break;
+      case 'right':
+        position.set(distance, 0, 0);
+        break;
+      case 'left':
+        position.set(-distance, 0, 0);
+        break;
+      case 'top':
+        position.set(0, distance, 0);
+        break;
+      case 'bottom':
+        position.set(0, -distance, 0);
+        break;
+    }
+    
+    // Get the center of the current mesh
+    const box = new THREE.Box3().setFromObject(this.currentMesh);
+    const center = box.getCenter(new THREE.Vector3());
+    
+    // Set camera position relative to model center
+    this.currentCamera.position.copy(center.clone().add(position));
+    this.currentCamera.lookAt(center);
+    this.controls.target.copy(center);
+    this.controls.update();
+  }
+
   public startAnimation() {
     const animate = () => {
       this.animationFrameId = requestAnimationFrame(animate);
       this.controls.update();
       this.renderer.render(this.scene, this.currentCamera);
+      
+      // Update orientation gizmo
+      if (this.orientationGizmo) {
+        this.orientationGizmo.update();
+      }
     };
     animate();
   }
 
   public updateBackgroundColor(color: string) {
     this.scene.background = new THREE.Color(color);
+  }
+
+  public updateCurrentCamera(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera) {
+    this.currentCamera = camera;
+    
+    // Update orientation gizmo to use new camera
+    if (this.orientationGizmo) {
+      this.orientationGizmo.updateMainCamera(camera);
+    }
+  }
+
+  public updateGizmoScale(scale: number) {
+    if (scale <= 0) return; // Prevent invalid scales
+    
+    this.gizmoScale = scale;
+    
+    // Recreate the gizmo with the new scale
+    if (this.orientationGizmo) {
+      this.orientationGizmo.dispose();
+      this.orientationGizmo = null;
+      
+      // Find the container element (parent of the renderer canvas)
+      const container = this.renderer.domElement.parentElement;
+      if (container) {
+        this.setupOrientationGizmo(container);
+      }
+    }
   }
 
   public updateGrid(gridColor: string, gridCenterLineColor: string) {
@@ -104,18 +197,16 @@ export class SceneManager {
   }
 
   public updateGridSize(size: number) {
-    this.gridSize = Math.max(size * 2, 20);
+    this.gridSize = Math.max(size * 1.25, 20);
     this.scene.remove(this.gridHelper);
     this.gridHelper.dispose();
 
-    console.log('this.gridHelper', this.gridSize);
     this.gridHelper = new THREE.GridHelper(
       this.gridSize,
       this.gridDivisions,
       this.gridHelper.material.color,
       this.gridHelper.material.color
     );
-    console.log('this.gridHelper', this.gridSize);
     this.scene.add(this.gridHelper);
   }
 
@@ -237,5 +328,11 @@ export class SceneManager {
     this.clearCurrentModel();
     this.controls.dispose();
     this.renderer.dispose();
+    
+    // Dispose orientation gizmo
+    if (this.orientationGizmo) {
+      this.orientationGizmo.dispose();
+      this.orientationGizmo = null;
+    }
   }
 }

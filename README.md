@@ -6,7 +6,6 @@ Web components to preview CAD model for designing.
 
 ### TODO
 
-1. Add feature to export screen shot of the canvas.
 2. Add model timeline , allow the option to keep old iteration of the model to compare current change with previous
 3. Add grid to fit the size of the objects
 4. Add more visible guizmo to see axis

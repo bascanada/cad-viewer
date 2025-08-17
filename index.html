@@ -32,6 +32,41 @@
             backdrop-filter: blur(5px);
         }
         
+        .gizmo-scale-control {
+            position: absolute;
+            top: 160px;
+            right: 20px;
+            width: 120px;
+            background: rgba(42, 42, 42, 0.95);
+            border: 2px solid #666;
+            border-radius: 8px;
+            padding: 12px;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+            box-sizing: border-box; /* Include padding in width calculation */
+        }
+        
+        .control-label {
+            color: #eee;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 12px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        
+        .scale-slider {
+            width: 100%;
+            margin-bottom: 8px;
+        }
+        
+        .scale-value {
+            color: #aaa;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 10px;
+            text-align: center;
+        }
+        
         .drag-drop-overlay:hover {
             background: rgba(52, 52, 52, 0.95);
             border-color: #888;
@@ -73,14 +108,35 @@
             <div class="drag-drop-subtext">or click to browse</div>
         </div>
         
+        <div class="gizmo-scale-control">
+            <div class="control-label">Gizmo Scale</div>
+            <input type="range" class="scale-slider" id="gizmoScaleSlider" 
+                   min="0.5" max="2.0" step="0.1" value="1.0">
+            <div class="scale-value" id="scaleValue">1.0x</div>
+        </div>
+        
         <input type="file" class="file-input" id="fileInput" accept=".stl,.3mf" multiple="false">
         
-        <cad-viewer id="cad-viewer" viewerBackgroundColor="#1e1e1e"></cad-viewer>
+        <cad-viewer id="cad-viewer" viewerBackgroundColor="#1e1e1e" gizmoScale="1.0"></cad-viewer>
     </div>
     <script>
         const cadViewer = document.getElementById('cad-viewer');
         const dragDropArea = document.getElementById('dragDropArea');
         const fileInput = document.getElementById('fileInput');
+        const gizmoScaleSlider = document.getElementById('gizmoScaleSlider');
+        const scaleValue = document.getElementById('scaleValue');
+        
+        // Gizmo scale control
+        gizmoScaleSlider.addEventListener('input', (e) => {
+            const scale = parseFloat(e.target.value);
+            cadViewer.setAttribute('gizmoScale', scale.toString());
+            scaleValue.textContent = `${scale.toFixed(1)}x`;
+        });
+        
+        // Set initial slider value to match the cad-viewer gizmo-scale attribute
+        const initialScale = parseFloat(cadViewer.getAttribute('gizmoScale') || '1.0');
+        gizmoScaleSlider.value = initialScale.toString();
+        scaleValue.textContent = `${initialScale.toFixed(1)}x`;
         
         // Set initial demo model
         cadViewer.payload = `

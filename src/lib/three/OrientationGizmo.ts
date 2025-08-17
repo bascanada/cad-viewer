@@ -241,11 +241,71 @@ export class OrientationGizmo {
   }
 
   private createEdgeFaces(size: number, bevelSize: number) {
+    const s = size / 2;
+    const l = s - bevelSize;
+    const material = new THREE.MeshLambertMaterial({ color: 0x888888, side: THREE.DoubleSide });
 
+    const edges = [
+        // Top & Bottom edges parallel to X-axis
+        { name: 'top-front', v: [[-l, l, s], [l, l, s], [l, s, l], [-l, s, l]] },
+        { name: 'top-back', v: [[-l, s, -l], [l, s, -l], [l, l, -s], [-l, l, -s]] },
+        { name: 'bottom-front', v: [[-l, -s, l], [l, -s, l], [l, -l, s], [-l, -l, s]] },
+        { name: 'bottom-back', v: [[-l, -l, -s], [l, -l, -s], [l, -s, -l], [-l, -s, -l]] },
+
+        // Top & Bottom edges parallel to Z-axis
+        { name: 'top-right', v: [[s, l, -l], [s, l, l], [l, s, l], [l, s, -l]] },
+        { name: 'top-left', v: [[-l, s, -l], [-l, s, l], [-s, l, l], [-s, l, -l]] },
+        { name: 'bottom-right', v: [[s, -l, l], [s, -l, -l], [l, -s, -l], [l, -s, l]] },
+        { name: 'bottom-left', v: [[-s, -l, l], [-s, -l, -l], [-l, -s, -l], [-l, -s, l]] },
+
+        // Vertical edges
+        { name: 'front-right', v: [[s, -l, l], [s, l, l], [l, l, s], [l, -l, s]] },
+        { name: 'front-left', v: [[-l, -l, s], [-l, l, s], [-s, l, l], [-s, -l, l]] },
+        { name: 'back-right', v: [[s, l, -l], [s, -l, -l], [l, -l, -s], [l, l, -s]] },
+        { name: 'back-left', v: [[-s, l, -l], [-s, -l, -l], [-l, -l, -s], [-l, l, -s]] },
+    ];
+
+    edges.forEach(edge => {
+        const geometry = new THREE.BufferGeometry();
+        const vertices = new Float32Array(edge.v.flat());
+        geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        geometry.setIndex([0, 1, 2, 0, 2, 3]);
+        geometry.computeVertexNormals();
+        const mesh = new THREE.Mesh(geometry, material.clone());
+        mesh.userData = { type: 'edge', edge: edge.name };
+        this.axesGroup.add(mesh);
+    });
   }
 
   private createCornerFaces(size: number, bevelSize: number) {
+    const s = size / 2;
+    const l = s - bevelSize;
+    const material = new THREE.MeshLambertMaterial({ color: 0xaaaaaa, side: THREE.DoubleSide });
 
+    const corners = [
+        { name: 'top-right-front', v: [[s,l,l], [l,s,l], [l,l,s]] },
+        { name: 'top-left-front', v: [[-s,l,l], [-l,s,l], [-l,l,s]] },
+        { name: 'top-right-back', v: [[s,l,-l], [l,s,-l], [l,l,-s]] },
+        { name: 'top-left-back', v: [[-s,l,-l], [-l,s,-l], [-l,l,-s]] },
+        { name: 'bottom-right-front', v: [[s,-l,l], [l,-s,l], [l,-l,s]] },
+        { name: 'bottom-left-front', v: [[-s,-l,l], [-l,-s,l], [-l,-l,s]] },
+        { name: 'bottom-right-back', v: [[s,-l,-l], [l,-s,-l], [l,-l,-s]] },
+        { name: 'bottom-left-back', v: [[-s,-l,-l], [-l,-s,-l], [-l,-l,-s]] },
+    ];
+
+    corners.forEach(corner => {
+        const geometry = new THREE.BufferGeometry();
+        const vertices = new Float32Array([
+            corner.v[0][0], corner.v[0][1], corner.v[0][2],
+            corner.v[1][0], corner.v[1][1], corner.v[1][2],
+            corner.v[2][0], corner.v[2][1], corner.v[2][2],
+        ]);
+        geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        geometry.computeVertexNormals();
+        const mesh = new THREE.Mesh(geometry, material.clone());
+        mesh.userData = { type: 'corner', corner: corner.name };
+        this.axesGroup.add(mesh);
+    });
   }
 
   private createFaceMaterial(label: string, color: number): THREE.MeshLambertMaterial {

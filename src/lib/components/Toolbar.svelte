@@ -1,11 +1,9 @@
 <script lang="ts">
-  import type { ViewMode, ViewDirection } from '../three/CameraController.js';
+  import type { ViewMode } from '../three/CameraController.js';
 
   export let viewMode: ViewMode;
-  export let onResetView: () => void;
   export let onToggleViewMode: () => void;
   export let onToggleWireframe: () => void;
-  export let onSetView: (view: ViewDirection) => void;
   export let onExportPNG: () => void;
 
   // Theme props
@@ -26,12 +24,8 @@
     --toolbar-button-border-color: {toolbarButtonBorderColor};
   "
 >
-  <button on:click={onResetView}>Reset View</button>
   <button on:click={onToggleViewMode}>View: {viewMode}</button>
   <button on:click={onToggleWireframe}>Toggle Wireframe</button>
-  <button on:click={() => onSetView('top')}>Top</button>
-  <button on:click={() => onSetView('front')}>Front</button>
-  <button on:click={() => onSetView('right')}>Right</button>
   <button on:click={onExportPNG}>Export PNG</button>
 </div>
 

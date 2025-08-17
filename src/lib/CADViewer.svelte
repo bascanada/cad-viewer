@@ -2,7 +2,7 @@
 
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { SceneManager, CameraController, ModelOperations, type ModelInfo, type ViewMode, type ViewDirection } from './three/index.js';
+  import { SceneManager, CameraController, ModelOperations, type ModelInfo, type ViewMode } from './three/index.js';
   import Toolbar from './components/Toolbar.svelte';
   import InfoPanel from './components/InfoPanel.svelte';
 
@@ -85,25 +85,17 @@
   }
 
   // --- Toolbar Handlers ---
-  function handleResetView() {
+  function handleToggleViewMode() {
+    viewMode = cameraController.toggleViewMode();
+    sceneManager.updateCurrentCamera(cameraController.currentCamera);
+    sceneManager.controls.object = sceneManager.currentCamera;
     if (sceneManager.currentMesh) {
       cameraController.frameToObject(sceneManager.currentMesh);
     }
   }
 
-  function handleToggleViewMode() {
-    viewMode = cameraController.toggleViewMode();
-    sceneManager.updateCurrentCamera(cameraController.currentCamera);
-    sceneManager.controls.object = sceneManager.currentCamera;
-    handleResetView();
-  }
-
   function handleToggleWireframe() {
     ModelOperations.toggleWireframe(sceneManager.currentMesh);
-  }
-
-  function handleSetView(view: ViewDirection) {
-    cameraController.setView(view);
   }
 
   function handleExportPNG() {
@@ -156,10 +148,8 @@
 
   <Toolbar
     {viewMode}
-    onResetView={handleResetView}
     onToggleViewMode={handleToggleViewMode}
     onToggleWireframe={handleToggleWireframe}
-    onSetView={handleSetView}
     onExportPNG={handleExportPNG}
     {toolbarBackgroundColor}
     {toolbarButtonBackgroundColor}

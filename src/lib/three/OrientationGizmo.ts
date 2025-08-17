@@ -8,17 +8,16 @@ export interface OrientationGizmoOptions {
   margin?: number;
   axisLength?: number;
   interactive?: boolean;
-  style?: 'arrows' | 'cube'; // New option for gizmo style
 }
 
 export class OrientationGizmo {
   private container: HTMLElement;
-  private gizmoRenderer: THREE.WebGLRenderer;
-  private gizmoScene: THREE.Scene;
-  private gizmoCamera: THREE.OrthographicCamera;
+  private gizmoRenderer!: THREE.WebGLRenderer;
+  private gizmoScene!: THREE.Scene;
+  private gizmoCamera!: THREE.OrthographicCamera;
   private mainCamera: THREE.Camera;
-  private gizmoElement: HTMLElement;
-  private axesGroup: THREE.Group;
+  private gizmoElement!: HTMLElement;
+  private axesGroup!: THREE.Group;
   private options: Required<OrientationGizmoOptions>;
   
   // Callback for when axis is clicked
@@ -39,7 +38,6 @@ export class OrientationGizmo {
       margin: 20,
       axisLength: 120, // Doubled from 60 to 120 to make cube bigger
       interactive: true,
-      style: 'arrows', // Default to arrow style
       ...options
     };
 
@@ -47,11 +45,7 @@ export class OrientationGizmo {
     this.setupGizmoScene();
     this.setupGizmoCamera();
     
-    if (this.options.style === 'cube') {
-      this.createViewCube();
-    } else {
-      this.createAxes();
-    }
+    this.createViewCube();
     
     this.positionGizmo();
     
@@ -104,88 +98,6 @@ export class OrientationGizmo {
     );
     this.gizmoCamera.position.set(100, 100, 100);
     this.gizmoCamera.lookAt(0, 0, 0);
-  }
-
-  private createAxes() {
-    this.axesGroup = new THREE.Group();
-    
-    const axisLength = this.options.axisLength;
-    const coneHeight = axisLength * 0.25; // Smaller cone proportion 
-    const coneRadius = axisLength * 0.15; // Wide cone
-    const lineRadius = axisLength * 0.08; // Much thicker shaft - most visible part
-    
-    // Create materials
-    const materials = {
-      x: new THREE.MeshLambertMaterial({ color: 0xff3333 }), // Red
-      y: new THREE.MeshLambertMaterial({ color: 0x33ff33 }), // Green  
-      z: new THREE.MeshLambertMaterial({ color: 0x3333ff })  // Blue
-    };
-    
-    // Invisible material for larger hit areas
-    const invisibleMaterial = new THREE.MeshBasicMaterial({ 
-      transparent: true, 
-      opacity: 0,
-      side: THREE.DoubleSide 
-    });
-    
-    // Create axis arrows
-    Object.entries(materials).forEach(([axis, material]) => {
-      const group = new THREE.Group();
-      group.userData = { axis };
-      
-      // Create cylinder (shaft) - visible
-      const cylinderGeometry = new THREE.CylinderGeometry(
-        lineRadius, lineRadius, axisLength - coneHeight, 8
-      );
-      const cylinder = new THREE.Mesh(cylinderGeometry, material);
-      
-      // Create cone (arrowhead) - visible
-      const coneGeometry = new THREE.ConeGeometry(coneRadius, coneHeight, 8);
-      const cone = new THREE.Mesh(coneGeometry, material);
-      cone.position.y = (axisLength - coneHeight) / 2 + coneHeight / 2; // Position at end of shaft
-      
-      // Position cylinder
-      cylinder.position.y = (axisLength - coneHeight) / 2;
-      
-      // Create larger invisible hit area for easier clicking
-      const hitAreaGeometry = new THREE.CylinderGeometry(
-        lineRadius * 5, // Even wider hit area
-        coneRadius * 2.5, // Wider at the tip
-        axisLength, 
-        8
-      );
-      const hitArea = new THREE.Mesh(hitAreaGeometry, invisibleMaterial);
-      hitArea.userData = { axis, isHitArea: true };
-      
-      group.add(cylinder);
-      group.add(cone);
-      group.add(hitArea);
-      
-      // Orient axes
-      if (axis === 'x') {
-        group.rotation.z = -Math.PI / 2;
-      } else if (axis === 'z') {
-        group.rotation.x = Math.PI / 2;
-      }
-      // Y axis is already vertical (default)
-      
-      this.axesGroup.add(group);
-    });
-    
-    // Add center sphere - bigger and more clickable
-    const sphereGeometry = new THREE.SphereGeometry(lineRadius * 2, 12, 12); // More proportional to thick shafts
-    const sphereMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
-    const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-    
-    // Add invisible larger hit area for center sphere
-    const sphereHitGeometry = new THREE.SphereGeometry(lineRadius * 4, 8, 8);
-    const sphereHitArea = new THREE.Mesh(sphereHitGeometry, invisibleMaterial);
-    sphereHitArea.userData = { axis: 'center', isHitArea: true };
-    
-    this.axesGroup.add(sphere);
-    this.axesGroup.add(sphereHitArea);
-    
-    this.gizmoScene.add(this.axesGroup);
   }
 
   private createViewCube() {
@@ -394,31 +306,11 @@ export class OrientationGizmo {
               target = clickedObject.userData;
               break;
             }
-            
-            // For arrow style, look at parent
-            if (this.options.style === 'arrows') {
-              let parent = clickedObject.parent;
-              while (parent && !target) {
-                if (parent.userData?.axis) {
-                  target = { axis: parent.userData.axis };
-                  break;
-                }
-                parent = parent.parent;
-              }
-            }
           }
         }
         
         if (target) {
-          // Handle different interaction types
-          if (this.options.style === 'cube') {
-            this.handleCubeInteraction(target);
-          } else if (target.axis && target.axis !== 'center') {
-            // Arrow style interaction
-            this.flashAxis(target.axis);
-            const direction = this.getViewDirectionFromAxis(target.axis);
-            this.onAxisClick(direction);
-          }
+          this.handleCubeInteraction(target);
         }
       }
     });
@@ -499,39 +391,6 @@ export class OrientationGizmo {
         'bottom-left-back': new THREE.Vector3(-1, -1, -1),
     };
     return (directions[corner] || new THREE.Vector3(1, 1, 1));
-  }
-
-  private flashAxis(axis: string) {
-    // Find the axis group and briefly highlight it
-    this.axesGroup.children.forEach(child => {
-      if (child.userData?.axis === axis) {
-        const group = child as THREE.Group;
-        group.children.forEach(mesh => {
-          if (mesh instanceof THREE.Mesh && !mesh.userData?.isHitArea) {
-            const originalMaterial = mesh.material as THREE.MeshLambertMaterial;
-            const flashMaterial = originalMaterial.clone();
-            flashMaterial.emissive.setHex(0x444444);
-            
-            mesh.material = flashMaterial;
-            
-            // Restore original material after a short delay
-            setTimeout(() => {
-              mesh.material = originalMaterial;
-              flashMaterial.dispose();
-            }, 150);
-          }
-        });
-      }
-    });
-  }
-
-  private getViewDirectionFromAxis(axis: string): THREE.Vector3 {
-    switch (axis) {
-      case 'x': return new THREE.Vector3(1, 0, 0);
-      case 'y': return new THREE.Vector3(0, 1, 0);
-      case 'z': return new THREE.Vector3(0, 0, 1);
-      default: return new THREE.Vector3(0, 0, 1);
-    }
   }
 
   public update() {

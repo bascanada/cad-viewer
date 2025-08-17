@@ -91,18 +91,22 @@ export class SceneManager {
     this.orientationGizmo = new OrientationGizmo(container, this.currentCamera, {
       position: 'bottom-right',
       size: scaledSize, // Apply scale multiplier to the base size
-      margin: 20,
-      style: 'cube' // Use the new cube style like FreeCAD
+      margin: 20
     });
     
     // Handle axis clicks to change view
     this.orientationGizmo.onAxisClick = (direction: THREE.Vector3) => {
-      if (!this.currentMesh) return;
+      const currentMesh = this.currentMesh;
+      if (!currentMesh) return;
 
-      const distance = this.currentMesh.geometry.boundingSphere.radius * 2;
+      if (!currentMesh.geometry.boundingSphere) {
+        currentMesh.geometry.computeBoundingSphere();
+      }
+
+      const distance = currentMesh.geometry.boundingSphere!.radius * 2;
       const position = direction.multiplyScalar(distance);
 
-      const box = new THREE.Box3().setFromObject(this.currentMesh);
+      const box = new THREE.Box3().setFromObject(currentMesh);
       const center = box.getCenter(new THREE.Vector3());
 
       this.currentCamera.position.copy(center.clone().add(position));

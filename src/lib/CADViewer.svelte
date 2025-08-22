@@ -2,7 +2,9 @@
 
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import * as THREE from 'three';
   import { SceneManager, CameraController, ModelOperations, type ModelInfo, type ViewMode } from './three/index.js';
+  import { CADPersistence, type CADViewerState } from './persistence/CADPersistence.js';
   import Toolbar from './components/Toolbar.svelte';
   import InfoPanel from './components/InfoPanel.svelte';
 
@@ -14,6 +16,7 @@
   export let gridColor = '#888888';
   export let gridCenterLineColor = '#444444';
   export let gizmoScale = 1.0; // Multiplier for orientation gizmo size (1.0 = default size)
+  export let persistenceId: string = ''; // Unique identifier for persistence storage
 
   // Ensure gizmoScale is always a number (custom elements pass attributes as strings)
   $: gizmoScaleNumber = typeof gizmoScale === 'string' ? parseFloat(gizmoScale) || 1.0 : gizmoScale;
@@ -35,14 +38,23 @@
   let resizeObserver: ResizeObserver;
   let modelInfo: ModelInfo = { triangleCount: 0, dimensions: null };
   let viewMode: ViewMode = 'perspective';
+  let isWireframeMode = false;
+  let currentModelData: { payload: string; payloadType: 'stl' | '3mf'; color: string } | null = null;
+  let isInitialized = false;
 
   onMount(() => {
     initializeViewer();
     setupResizeObserver();
     
-    if (payload) {
+    // Load saved state first
+    loadSavedState();
+    
+    // If no saved model and payload is provided, load it
+    if (!currentModelData && payload) {
       loadModel();
     }
+    
+    isInitialized = true;
   });
 
   onDestroy(() => {
@@ -59,6 +71,7 @@
     );
     sceneManager.updateCurrentCamera(cameraController.currentCamera);
     sceneManager.startAnimation();
+    setupCameraChangeListeners();
   }
 
   function setupResizeObserver() {
@@ -73,10 +86,111 @@
   }
 
   function loadModel() {
+    currentModelData = { payload, payloadType, color };
     modelInfo = sceneManager.loadModel(payload, payloadType, color);
     if (sceneManager.currentMesh) {
       cameraController.frameToObject(sceneManager.currentMesh, false);
+      // Update wireframe state from mesh
+      isWireframeMode = ModelOperations.getWireframeState(sceneManager.currentMesh);
+      
+      // Ensure the camera target is at origin after framing
+      sceneManager.controls.target.set(0, 0, 0);
+      sceneManager.controls.update();
     }
+    
+    // Save state after loading model
+    if (isInitialized) {
+      saveCurrentState();
+    }
+  }
+
+  function loadSavedState() {
+    const savedState = CADPersistence.loadState(persistenceId || undefined);
+    if (!savedState) return;
+
+    console.log('Loading saved state for ID:', persistenceId || 'default', savedState);
+
+    // Restore camera mode first
+    if (savedState.camera.mode !== viewMode) {
+      viewMode = savedState.camera.mode;
+      cameraController.setViewMode(viewMode);
+      sceneManager.updateCurrentCamera(cameraController.currentCamera);
+      sceneManager.controls.object = sceneManager.currentCamera;
+    }
+
+    // Restore model if available
+    if (savedState.model) {
+      currentModelData = savedState.model;
+      modelInfo = sceneManager.loadModel(
+        savedState.model.payload,
+        savedState.model.payloadType,
+        savedState.model.color
+      );
+      
+      // Model is loaded and centered, now apply saved camera state
+      if (sceneManager.currentMesh) {
+        // Center the model manually (just to be sure)
+        const boundingBox = new THREE.Box3().setFromObject(sceneManager.currentMesh);
+        const center = boundingBox.getCenter(new THREE.Vector3());
+        sceneManager.currentMesh.position.sub(center);
+        
+        console.log('Model centered at:', sceneManager.currentMesh.position);
+        console.log('Restoring camera to:', savedState.camera);
+        
+        // Manually apply camera state with proper handling for orthographic cameras
+        cameraController.currentCamera.position.set(
+          savedState.camera.position.x,
+          savedState.camera.position.y,
+          savedState.camera.position.z
+        );
+        
+        sceneManager.controls.target.set(0, 0, 0); // Always target origin for models
+        
+        // Apply orthographic zoom if available
+        if (savedState.camera.orthographicZoom && viewMode === 'orthographic') {
+          const orthoCamera = cameraController.currentCamera as THREE.OrthographicCamera;
+          orthoCamera.zoom = savedState.camera.orthographicZoom;
+          orthoCamera.updateProjectionMatrix();
+        }
+        
+        cameraController.currentCamera.lookAt(0, 0, 0);
+        sceneManager.controls.update();
+      }
+    } else {
+      // No model to load, just restore camera state as-is
+      CADPersistence.applyState(savedState, cameraController.currentCamera, sceneManager.controls);
+    }
+
+    // Restore wireframe mode
+    if (sceneManager.currentMesh) {
+      ModelOperations.setWireframeState(sceneManager.currentMesh, savedState.wireframe);
+      isWireframeMode = savedState.wireframe;
+    }
+  }
+
+  function saveCurrentState() {
+    if (!sceneManager || !cameraController || !isInitialized) return;
+
+    const state = CADPersistence.createState(
+      cameraController.currentCamera,
+      sceneManager.controls,
+      viewMode,
+      isWireframeMode,
+      currentModelData || undefined
+    );
+
+    CADPersistence.saveState(state, persistenceId || undefined);
+  }
+
+  function setupCameraChangeListeners() {
+    if (!sceneManager?.controls) return;
+    
+    // Save state when camera changes
+    sceneManager.controls.addEventListener('end', () => {
+      if (isInitialized) {
+        saveCurrentState();
+      }
+    });
   }
 
   function cleanup() {
@@ -89,21 +203,37 @@
     viewMode = cameraController.toggleViewMode();
     sceneManager.updateCurrentCamera(cameraController.currentCamera);
     sceneManager.controls.object = sceneManager.currentCamera;
-    if (sceneManager.currentMesh) {
-      cameraController.frameToObject(sceneManager.currentMesh);
-    }
+    
+    // The camera controller handles position transfer, we just need to update the controls
+    sceneManager.controls.update();
+    
+    // Save state after view mode change
+    saveCurrentState();
   }
 
   function handleToggleWireframe() {
     ModelOperations.toggleWireframe(sceneManager.currentMesh);
+    isWireframeMode = ModelOperations.getWireframeState(sceneManager.currentMesh);
+    
+    // Save state after wireframe change
+    saveCurrentState();
   }
 
   function handleExportPNG() {
     sceneManager.exportScreenshot();
   }
 
+  // --- Public API for controlling persistence ---
+  export function clearSavedState() {
+    CADPersistence.clearState(persistenceId || undefined);
+  }
+
+  export function getSavedState() {
+    return CADPersistence.loadState(persistenceId || undefined);
+  }
+
   // --- Reactive Statements ---
-  $: if (sceneManager && payload) {
+  $: if (sceneManager && payload && !currentModelData) {
     loadModel();
   }
 
@@ -116,8 +246,15 @@
     sceneManager.updateGrid(gridColor, gridCenterLineColor);
   }
 
-  $: if (sceneManager?.currentMesh) {
-    ModelOperations.updateMeshColor(sceneManager.currentMesh, color);
+  $: if (sceneManager?.currentMesh && currentModelData) {
+    ModelOperations.updateMeshColor(sceneManager.currentMesh, currentModelData.color);
+    // Update current model data color and save state
+    if (currentModelData.color !== color) {
+      currentModelData = { ...currentModelData, color };
+      if (isInitialized) {
+        saveCurrentState();
+      }
+    }
   }
 
   $: if (sceneManager && gizmoScaleNumber) {

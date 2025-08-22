@@ -18,9 +18,84 @@ export class CameraController {
   }
 
   public toggleViewMode(): ViewMode {
+    const oldCamera = this.currentCamera;
+    const oldPosition = oldCamera.position.clone();
+    const oldTarget = this.controls.target.clone();
+    
     this.viewMode = this.viewMode === 'perspective' ? 'orthographic' : 'perspective';
-    this.controls.object = this.currentCamera;
+    const newCamera = this.currentCamera;
+    
+    // Transfer position and target to the new camera
+    newCamera.position.copy(oldPosition);
+    newCamera.lookAt(oldTarget);
+    
+    // Calculate equivalent zoom/distance for different camera types
+    if (this.viewMode === 'orthographic') {
+      // Switching TO orthographic - calculate appropriate zoom
+      const distance = oldPosition.distanceTo(oldTarget);
+      const fov = this.perspectiveCamera.fov * (Math.PI / 180);
+      const height = 2 * Math.tan(fov / 2) * distance;
+      
+      // Set orthographic camera bounds based on calculated height
+      const aspect = this.container.clientWidth / this.container.clientHeight;
+      const orthoHeight = height;
+      const orthoWidth = orthoHeight * aspect;
+      
+      this.orthographicCamera.left = -orthoWidth / 2;
+      this.orthographicCamera.right = orthoWidth / 2;
+      this.orthographicCamera.top = orthoHeight / 2;
+      this.orthographicCamera.bottom = -orthoHeight / 2;
+      this.orthographicCamera.zoom = 1;
+      this.orthographicCamera.updateProjectionMatrix();
+    } else {
+      // Switching TO perspective - just transfer position (perspective is distance-based)
+      // No special calculations needed as distance naturally controls the view size
+    }
+    
+    this.controls.object = newCamera;
+    this.controls.target.copy(oldTarget);
+    this.controls.update();
+    
     return this.viewMode;
+  }
+
+  public setViewMode(mode: ViewMode): void {
+    if (this.viewMode === mode) return; // No change needed
+    
+    const oldCamera = this.currentCamera;
+    const oldPosition = oldCamera.position.clone();
+    const oldTarget = this.controls.target.clone();
+    
+    this.viewMode = mode;
+    const newCamera = this.currentCamera;
+    
+    // Transfer position and target to the new camera
+    newCamera.position.copy(oldPosition);
+    newCamera.lookAt(oldTarget);
+    
+    // Calculate equivalent zoom/distance for different camera types
+    if (this.viewMode === 'orthographic') {
+      // Switching TO orthographic - calculate appropriate zoom
+      const distance = oldPosition.distanceTo(oldTarget);
+      const fov = this.perspectiveCamera.fov * (Math.PI / 180);
+      const height = 2 * Math.tan(fov / 2) * distance;
+      
+      // Set orthographic camera bounds based on calculated height
+      const aspect = this.container.clientWidth / this.container.clientHeight;
+      const orthoHeight = height;
+      const orthoWidth = orthoHeight * aspect;
+      
+      this.orthographicCamera.left = -orthoWidth / 2;
+      this.orthographicCamera.right = orthoWidth / 2;
+      this.orthographicCamera.top = orthoHeight / 2;
+      this.orthographicCamera.bottom = -orthoHeight / 2;
+      this.orthographicCamera.zoom = 1;
+      this.orthographicCamera.updateProjectionMatrix();
+    }
+    
+    this.controls.object = newCamera;
+    this.controls.target.copy(oldTarget);
+    this.controls.update();
   }
 
   public frameToObject(mesh: THREE.Mesh, resetPosition = true) {

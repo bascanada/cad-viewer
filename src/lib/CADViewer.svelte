@@ -121,17 +121,15 @@
     // prefer the incoming payload (do NOT restore the saved model). This ensures
     // the component behaves predictably when a parent updates the payload.
     const hasIncomingPayload = !!payload;
-    const savedModelExists = !!savedState.model;
-    const savedModelMatchesPayload = savedModelExists && hasIncomingPayload &&
-      savedState.model.payload === payload && savedState.model.payloadType === payloadType;
+    const savedModel = savedState.model;
 
-    if (savedModelExists && (!hasIncomingPayload || savedModelMatchesPayload)) {
+    if (savedModel && (!hasIncomingPayload || (hasIncomingPayload && savedModel.payload === payload && savedModel.payloadType === payloadType))) {
       // Restore model from saved state
-      currentModelData = savedState.model;
+      currentModelData = savedModel;
       modelInfo = sceneManager.loadModel(
-        savedState.model.payload,
-        savedState.model.payloadType,
-        savedState.model.color
+        savedModel.payload,
+        savedModel.payloadType,
+        savedModel.color
       );
       
       // Model is loaded and centered, now apply saved camera state

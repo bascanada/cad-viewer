@@ -333,6 +333,8 @@ endsolid OpenSCAD_Model`;
                     // Update CAD viewer
                     cadViewer.payload = payload;
                     cadViewer.payloadType = extension;
+
+                    console.log("loading ", extension);
                     
                 } catch (error) {
                     console.error('Error loading file:', error);

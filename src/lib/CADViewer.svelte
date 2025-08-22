@@ -179,6 +179,8 @@
       currentModelData || undefined
     );
 
+    console.log("saving state: ", persistenceId);
+
     CADPersistence.saveState(state, persistenceId || undefined);
   }
 
@@ -233,10 +235,17 @@
   }
 
   // --- Reactive Statements ---
-  $: if (sceneManager && payload && !currentModelData) {
-    loadModel();
+  $: if (sceneManager && payload) {
+    // Check if payload has changed compared to current model data
+    const hasChanged = !currentModelData || 
+                      currentModelData.payload !== payload || 
+                      currentModelData.payloadType !== payloadType;
+    
+    if (hasChanged) {
+      loadModel();
+    }
   }
-
+  
   $: if (sceneManager && container) {
     const computedStyle = getComputedStyle(container);
     sceneManager.updateBackgroundColor(computedStyle.backgroundColor);

@@ -99,9 +99,8 @@
     }
     
     // Save state after loading model
-    if (isInitialized) {
-      saveCurrentState();
-    }
+    // Force save so that when payload changes we immediately update persisted model
+    saveCurrentState(true);
   }
 
   function loadSavedState() {
@@ -115,11 +114,19 @@
       viewMode = savedState.camera.mode;
       cameraController.setViewMode(viewMode);
       sceneManager.updateCurrentCamera(cameraController.currentCamera);
-      sceneManager.controls.object = sceneManager.currentCamera;
+      sceneManager.controls.object = cameraController.currentCamera;
     }
 
-    // Restore model if available
-    if (savedState.model) {
+    // If a payload prop was provided externally and it differs from the saved model,
+    // prefer the incoming payload (do NOT restore the saved model). This ensures
+    // the component behaves predictably when a parent updates the payload.
+    const hasIncomingPayload = !!payload;
+    const savedModelExists = !!savedState.model;
+    const savedModelMatchesPayload = savedModelExists && hasIncomingPayload &&
+      savedState.model.payload === payload && savedState.model.payloadType === payloadType;
+
+    if (savedModelExists && (!hasIncomingPayload || savedModelMatchesPayload)) {
+      // Restore model from saved state
       currentModelData = savedState.model;
       modelInfo = sceneManager.loadModel(
         savedState.model.payload,
@@ -157,7 +164,8 @@
         sceneManager.controls.update();
       }
     } else {
-      // No model to load, just restore camera state as-is
+      // Do not restore the saved model because an incoming payload was provided
+      // and differs; still apply the saved camera (useful when no model is present)
       CADPersistence.applyState(savedState, cameraController.currentCamera, sceneManager.controls);
     }
 
@@ -168,8 +176,8 @@
     }
   }
 
-  function saveCurrentState() {
-    if (!sceneManager || !cameraController || !isInitialized) return;
+  function saveCurrentState(force: boolean = false) {
+    if (!sceneManager || !cameraController || (!isInitialized && !force)) return;
 
     const state = CADPersistence.createState(
       cameraController.currentCamera,
